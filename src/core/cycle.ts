@@ -23,6 +23,7 @@ interface CycleInput {
     }>;
   };
   scheduler: Scheduler;
+  customPrompt?: string;  // Optional custom prompt from planner
 }
 
 interface CycleResult {
@@ -42,10 +43,10 @@ interface CycleResult {
  * HutchMem hooks handle memory automatically.
  */
 export async function runCycle(input: CycleInput): Promise<CycleResult> {
-  const { goal, task, state, scheduler } = input;
+  const { goal, task, state, scheduler, customPrompt } = input;
 
-  // Build the prompt for this cycle
-  const prompt = buildCyclePrompt(goal, task, state);
+  // Use custom prompt from planner if provided, otherwise build default
+  const prompt = customPrompt || buildCyclePrompt(goal, task, state);
 
   try {
     // Run claude code with the prompt
