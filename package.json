@@ -1,0 +1,32 @@
+{
+  "name": "@usehutch/nexus",
+  "version": "0.1.0",
+  "description": "24/7 Autonomous AI Agent powered by HutchMem",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "nexus": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "bun run src/cli/index.ts start",
+    "nexus": "bun run src/cli/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Hutch",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/usehutch/nexus.git"
+  }
+}

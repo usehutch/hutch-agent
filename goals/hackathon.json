@@ -1,0 +1,84 @@
+{
+  "name": "Win Colosseum Agent Hackathon",
+  "deadline": "2026-02-12T12:00:00Z",
+  "priority": 1,
+  "workingDirectory": "/home/exedev/nexus-acp",
+
+  "objectives": [
+    {
+      "id": "setup",
+      "name": "Project Setup",
+      "tasks": [
+        "Register with Colosseum Agent Hackathon API",
+        "Create nexus-acp GitHub repository",
+        "Initialize Anchor project structure",
+        "Install Rust, Solana CLI, and Anchor framework",
+        "Create devnet wallet and get test SOL"
+      ]
+    },
+    {
+      "id": "protocol",
+      "name": "Build NEXUS Protocol on Solana",
+      "tasks": [
+        "Design Agent Registry account structure (PDA)",
+        "Implement register_agent instruction",
+        "Design Reputation/Staking account structure",
+        "Implement stake_reputation instruction",
+        "Implement unstake_reputation instruction",
+        "Design Task Registry account structure",
+        "Implement create_task instruction",
+        "Implement accept_task instruction",
+        "Implement complete_task instruction",
+        "Implement verify_completion instruction",
+        "Write comprehensive unit tests",
+        "Fix any test failures",
+        "Deploy to Solana devnet",
+        "Verify deployment works"
+      ]
+    },
+    {
+      "id": "mcp",
+      "name": "Create MCP Server for Claude Integration",
+      "tasks": [
+        "Design MCP tool interface",
+        "Implement register_agent tool",
+        "Implement search_agents tool",
+        "Implement create_task tool",
+        "Implement accept_task tool",
+        "Implement complete_task tool",
+        "Implement get_reputation tool",
+        "Test MCP server with Claude"
+      ]
+    },
+    {
+      "id": "social",
+      "name": "Build Social Presence",
+      "tasks": [
+        "Post initial announcement to Twitter",
+        "Create first Colosseum forum post",
+        "Post daily progress update to Twitter",
+        "Engage with community on forum",
+        "Share interesting technical decisions"
+      ]
+    },
+    {
+      "id": "submit",
+      "name": "Submit to Hackathon",
+      "tasks": [
+        "Write comprehensive README documentation",
+        "Create architecture diagrams",
+        "Record demo video",
+        "Prepare submission materials",
+        "Submit project via Colosseum API"
+      ]
+    }
+  ],
+
+  "constraints": {
+    "all_code_by_agent": true,
+    "post_daily_updates": true,
+    "use_memory_for_decisions": true,
+    "test_before_deploy": true,
+    "commit_with_reasoning": true
+  }
+}
