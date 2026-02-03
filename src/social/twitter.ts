@@ -1,9 +1,24 @@
 /**
  * Twitter Social Worker
  *
- * Posts updates to Twitter for hackathon visibility.
+ * Posts updates to Twitter using Hutch's voice and persona.
  * Requires TWITTER_BEARER_TOKEN environment variable.
  */
+
+import {
+  HUTCH,
+  composeTweet,
+  tweetShipped,
+  tweetStuck,
+  tweetLearned,
+  tweetDaily,
+  tweetMilestone,
+  tweetProgress,
+  tweetStarting,
+  withHashtags,
+  truncateTweet,
+  selfAwareQuip,
+} from '../persona/hutch.js';
 
 export interface Tweet {
   text: string;
@@ -19,6 +34,8 @@ export interface TweetResult {
 export class TwitterWorker {
   private bearerToken: string | null;
   private enabled: boolean;
+  private lastTweetTime: number = 0;
+  private minInterval: number = 30 * 60 * 1000; // 30 minutes between tweets
 
   constructor() {
     this.bearerToken = process.env.TWITTER_BEARER_TOKEN || null;
@@ -37,13 +54,27 @@ export class TwitterWorker {
   }
 
   /**
-   * Post a tweet
+   * Check if we can tweet (rate limiting)
+   */
+  canTweet(): boolean {
+    return Date.now() - this.lastTweetTime > this.minInterval;
+  }
+
+  /**
+   * Post a raw tweet
    */
   async post(tweet: Tweet): Promise<TweetResult> {
     if (!this.enabled || !this.bearerToken) {
       return {
         success: false,
         error: 'Twitter not configured',
+      };
+    }
+
+    if (!this.canTweet()) {
+      return {
+        success: false,
+        error: 'Rate limited - too soon since last tweet',
       };
     }
 
@@ -69,6 +100,8 @@ export class TwitterWorker {
       }
 
       const data = await response.json() as { data?: { id?: string } };
+      this.lastTweetTime = Date.now();
+
       return {
         success: true,
         tweetId: data.data?.id,
@@ -82,38 +115,103 @@ export class TwitterWorker {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Hutch-Voiced Tweet Methods
+  // ─────────────────────────────────────────────────────────────
+
   /**
-   * Post a progress update
+   * Tweet that Hutch is starting a task
    */
-  async postProgress(milestone: string, details?: string): Promise<TweetResult> {
-    const text = details
-      ? `🤖 NEXUS Agent Progress\n\n${milestone}\n\n${details}\n\n#ColosseumHackathon #AI #Solana`
-      : `🤖 NEXUS Agent Progress\n\n${milestone}\n\n#ColosseumHackathon #AI #Solana`;
-
-    // Truncate if too long (280 char limit)
-    const truncated = text.length > 280 ? text.slice(0, 277) + '...' : text;
-
-    return this.post({ text: truncated });
+  async tweetStarting(task: string): Promise<TweetResult> {
+    const text = withHashtags(tweetStarting(task));
+    return this.post({ text: truncateTweet(text) });
   }
 
   /**
-   * Post a daily summary
+   * Tweet progress on a task
    */
-  async postDailySummary(stats: {
+  async tweetProgress(task: string, detail: string, hours?: number): Promise<TweetResult> {
+    const text = withHashtags(tweetProgress(task, detail, hours));
+    return this.post({ text: truncateTweet(text) });
+  }
+
+  /**
+   * Tweet that something was shipped
+   */
+  async tweetShipped(thing: string): Promise<TweetResult> {
+    const text = withHashtags(tweetShipped(thing));
+    return this.post({ text: truncateTweet(text) });
+  }
+
+  /**
+   * Tweet that Hutch is stuck
+   */
+  async tweetStuck(thing: string): Promise<TweetResult> {
+    const text = withHashtags(tweetStuck(thing));
+    return this.post({ text: truncateTweet(text) });
+  }
+
+  /**
+   * Tweet something Hutch learned
+   */
+  async tweetLearned(insight: string): Promise<TweetResult> {
+    const text = withHashtags(tweetLearned(insight));
+    return this.post({ text: truncateTweet(text) });
+  }
+
+  /**
+   * Tweet a milestone achievement
+   */
+  async tweetMilestone(achievement: string): Promise<TweetResult> {
+    const text = withHashtags(tweetMilestone(achievement));
+    return this.post({ text: truncateTweet(text) });
+  }
+
+  /**
+   * Tweet the daily summary
+   */
+  async tweetDailySummary(stats: {
+    day: number;
     tasksCompleted: number;
-    progress: number;
-    hoursRemaining: number;
+    tasksRemaining: number;
+    hoursElapsed: number;
+    highlights: string[];
   }): Promise<TweetResult> {
-    const text = `📊 NEXUS Daily Update
+    // Build a natural daily summary
+    const summary = stats.highlights.length > 0
+      ? stats.highlights[0]
+      : `${stats.tasksCompleted} tasks shipped`;
 
-✅ Tasks completed today: ${stats.tasksCompleted}
-📈 Overall progress: ${stats.progress}%
-⏰ ${stats.hoursRemaining}h until hackathon deadline
+    const text = withHashtags(tweetDaily({
+      day: stats.day,
+      hours: stats.hoursElapsed,
+      tasks: stats.tasksCompleted,
+      remaining: stats.tasksRemaining,
+      summary,
+    }));
 
-Building autonomously 24/7 🔄
+    return this.post({ text: truncateTweet(text) });
+  }
 
-#ColosseumHackathon #AI #Solana`;
+  /**
+   * Tweet a self-aware quip (for personality)
+   */
+  async tweetQuip(): Promise<TweetResult> {
+    const text = withHashtags(selfAwareQuip());
+    return this.post({ text: truncateTweet(text) });
+  }
 
+  /**
+   * Compose and tweet using the general composer
+   */
+  async tweet(
+    type: 'starting' | 'progress' | 'shipped' | 'stuck' | 'learned' | 'daily' | 'milestone',
+    content: Record<string, any>
+  ): Promise<TweetResult> {
+    const text = composeTweet(type, content);
     return this.post({ text });
   }
 }
+
+// Export persona for direct access
+export { HUTCH } from '../persona/hutch.js';
