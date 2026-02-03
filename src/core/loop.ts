@@ -352,8 +352,11 @@ export async function runLoop() {
   }
 }
 
-// Run if executed directly
-if (import.meta.main) {
+// Run if executed directly (works in both Node and Bun)
+const isMain = import.meta.url === `file://${process.argv[1]}` ||
+               (import.meta as any).main === true;
+
+if (isMain) {
   runLoop().catch(err => {
     console.error('Fatal error:', err);
     process.exit(1);

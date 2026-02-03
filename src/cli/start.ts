@@ -4,8 +4,11 @@
 
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { spawn } from 'child_process';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const NEXUS_DIR = join(homedir(), '.nexus');
 const PID_FILE = join(NEXUS_DIR, 'nexus.pid');
@@ -44,7 +47,7 @@ export async function start() {
     await runLoop();
   } else {
     // Spawn as daemon
-    const loopPath = join(import.meta.dir, '../core/loop.ts');
+    const loopPath = join(__dirname, '../core/loop.ts');
 
     const child = spawn('bun', ['run', loopPath], {
       detached: true,

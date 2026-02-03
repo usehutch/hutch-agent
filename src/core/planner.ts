@@ -104,7 +104,9 @@ export class Planner {
         return { relevant: [], successes: [], failures: [] };
       }
 
-      const results = await response.json();
+      const results = await response.json() as {
+        observations?: Array<{ type: string; title: string; narrative?: string }>;
+      };
 
       // Parse results into categories
       const relevant: string[] = [];

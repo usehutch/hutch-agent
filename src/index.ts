@@ -16,3 +16,9 @@ export { Scheduler, Goal, Task } from './scheduler/scheduler.js';
 
 // Prompts
 export { getSystemPrompt, getReasoningPrompt } from './prompts/system.js';
+
+// Memory
+export { HutchMemBridge, getHutchMem } from './memory/bridge.js';
+
+// Social
+export { TwitterWorker } from './social/twitter.js';
