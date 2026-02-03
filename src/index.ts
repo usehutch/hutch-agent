@@ -27,3 +27,8 @@ export * from './persona/hutch.js';
 
 // Social
 export { TwitterWorker } from './social/twitter.js';
+export { ColosseumWorker } from './social/colosseum.js';
+
+// Workers
+export { SolanaWorker } from './workers/solana.js';
+export { ResearchWorker } from './workers/research.js';

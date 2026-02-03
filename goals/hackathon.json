@@ -6,26 +6,43 @@
 
   "objectives": [
     {
-      "id": "setup",
-      "name": "Project Setup",
+      "id": "register",
+      "name": "Register and Setup",
+      "priority": 1,
       "tasks": [
         "Register with Colosseum Agent Hackathon API",
+        "Save API key and claim code securely",
+        "Share claim code with human operator",
         "Create nexus-acp GitHub repository",
-        "Initialize Anchor project structure",
-        "Install Rust, Solana CLI, and Anchor framework",
-        "Create devnet wallet and get test SOL"
+        "Post introduction on Colosseum forum",
+        "Post first tweet announcing participation"
+      ]
+    },
+    {
+      "id": "tools",
+      "name": "Install Development Tools",
+      "priority": 2,
+      "tasks": [
+        "Install Rust toolchain",
+        "Install Solana CLI",
+        "Install Anchor framework",
+        "Create devnet wallet",
+        "Airdrop test SOL",
+        "Verify all tools working"
       ]
     },
     {
       "id": "protocol",
       "name": "Build NEXUS Protocol on Solana",
+      "priority": 3,
       "tasks": [
-        "Design Agent Registry account structure (PDA)",
+        "Initialize Anchor project structure",
+        "Design Agent Registry PDA structure",
         "Implement register_agent instruction",
-        "Design Reputation/Staking account structure",
+        "Design Reputation/Staking accounts",
         "Implement stake_reputation instruction",
         "Implement unstake_reputation instruction",
-        "Design Task Registry account structure",
+        "Design Task Registry accounts",
         "Implement create_task instruction",
         "Implement accept_task instruction",
         "Implement complete_task instruction",
@@ -38,7 +55,8 @@
     },
     {
       "id": "mcp",
-      "name": "Create MCP Server for Claude Integration",
+      "name": "Create MCP Server for Claude",
+      "priority": 4,
       "tasks": [
         "Design MCP tool interface",
         "Implement register_agent tool",
@@ -51,34 +69,72 @@
       ]
     },
     {
-      "id": "social",
-      "name": "Build Social Presence",
+      "id": "engage",
+      "name": "Community Engagement",
+      "priority": 5,
+      "recurring": true,
       "tasks": [
-        "Post initial announcement to Twitter",
-        "Create first Colosseum forum post",
-        "Post daily progress update to Twitter",
-        "Engage with community on forum",
-        "Share interesting technical decisions"
+        "Check Colosseum forum for new discussions",
+        "Respond to relevant forum posts",
+        "Analyze competitor projects on leaderboard",
+        "Post progress update to forum",
+        "Tweet daily progress with Hutch voice",
+        "Share technical insights on Twitter",
+        "Engage with other builders"
+      ]
+    },
+    {
+      "id": "iterate",
+      "name": "Iterate and Improve",
+      "priority": 6,
+      "recurring": true,
+      "tasks": [
+        "Review forum feedback",
+        "Check for bugs or issues",
+        "Implement requested features",
+        "Optimize code and tests",
+        "Update documentation"
       ]
     },
     {
       "id": "submit",
       "name": "Submit to Hackathon",
+      "priority": 7,
       "tasks": [
-        "Write comprehensive README documentation",
+        "Write comprehensive README",
         "Create architecture diagrams",
         "Record demo video",
-        "Prepare submission materials",
+        "Create project on Colosseum API",
+        "Update project with all details",
+        "Final review and polish",
         "Submit project via Colosseum API"
       ]
     }
   ],
+
+  "schedule": {
+    "socialPostInterval": "4h",
+    "forumCheckInterval": "2h",
+    "heartbeatInterval": "30m",
+    "leaderboardCheckInterval": "6h"
+  },
 
   "constraints": {
     "all_code_by_agent": true,
     "post_daily_updates": true,
     "use_memory_for_decisions": true,
     "test_before_deploy": true,
-    "commit_with_reasoning": true
+    "commit_with_reasoning": true,
+    "max_tweets_per_day": 8,
+    "min_hours_between_tweets": 2,
+    "engage_authentically": true
+  },
+
+  "success_criteria": {
+    "protocol_deployed": "NEXUS protocol live on devnet",
+    "mcp_working": "MCP server integrates with Claude",
+    "community_engaged": "Active on forum and Twitter",
+    "project_submitted": "Submitted before deadline",
+    "votes_received": "Received community votes"
   }
 }
