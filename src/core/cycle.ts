@@ -60,6 +60,31 @@ interface CycleResult {
 }
 
 /**
+ * Check if HutchMem worker is healthy
+ */
+async function checkHutchMemHealth(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch('http://127.0.0.1:37777/health', {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      console.log(`[Cycle] HutchMem worker healthy ✓`);
+      return true;
+    }
+    console.log(`[Cycle] HutchMem worker returned ${response.status}`);
+    return false;
+  } catch (err: any) {
+    console.log(`[Cycle] HutchMem worker not reachable: ${err.message}`);
+    return false;
+  }
+}
+
+/**
  * Run a single cycle using Claude Code CLI
  *
  * This spawns `claude` with a prompt that includes:
@@ -71,15 +96,27 @@ interface CycleResult {
 export async function runCycle(input: CycleInput): Promise<CycleResult> {
   const { goal, task, state, scheduler, customPrompt } = input;
 
+  // Pre-cycle health check
+  const hutchMemHealthy = await checkHutchMemHealth();
+  if (!hutchMemHealthy) {
+    console.log(`[Cycle] ⚠️ HutchMem worker not healthy, proceeding anyway`);
+  }
+
   // Use custom prompt from planner if provided, otherwise build default
   const prompt = customPrompt || buildCyclePrompt(goal, task, state);
 
   try {
+    console.log(`[Cycle] Starting task: ${task?.name || 'no specific task'}`);
+    const startTime = Date.now();
+
     // Run claude code with the prompt
     const result = await runClaudeCode(prompt, {
       cwd: goal.workingDirectory || process.cwd(),
       maxTurns: 50,
     });
+
+    const duration = Math.floor((Date.now() - startTime) / 1000);
+    console.log(`[Cycle] Completed in ${duration}s with ${result.success ? 'success' : 'failure'}`);
 
     // Determine what action was taken from output
     const action = extractAction(result.output) || task?.name || 'unknown action';
@@ -97,6 +134,7 @@ export async function runCycle(input: CycleInput): Promise<CycleResult> {
     };
 
   } catch (err: any) {
+    console.log(`[Cycle] Exception: ${err.message}`);
     return {
       action: task?.name || 'cycle',
       success: false,
@@ -145,14 +183,21 @@ Begin working on the task.
 
 /**
  * Run Claude Code CLI with a prompt
+ * Includes stuck detection and retry logic
  */
 async function runClaudeCode(
   prompt: string,
   options: {
     cwd?: string;
     maxTurns?: number;
+    attempt?: number;
   }
 ): Promise<{ success: boolean; output: string; error?: string }> {
+  const MAX_RETRIES = 3;
+  const NO_OUTPUT_TIMEOUT = 90 * 1000;  // 90 seconds with no output = stuck
+  const MAX_CYCLE_TIME = 5 * 60 * 1000;  // 5 minutes max per cycle
+  const attempt = options.attempt || 1;
+
   return new Promise((resolve) => {
     // Ensure working directory exists
     const cwd = options.cwd || process.cwd();
@@ -166,7 +211,7 @@ async function runClaudeCode(
       prompt,
     ];
 
-    console.log(`[Cycle] Running claude in ${cwd}`);
+    console.log(`[Cycle] Running claude in ${cwd} (attempt ${attempt}/${MAX_RETRIES})`);
     console.log(`[Cycle] Prompt length: ${prompt.length} chars`);
 
     const claude = spawn('claude', args, {
@@ -185,14 +230,31 @@ async function runClaudeCode(
 
     let stdout = '';
     let stderr = '';
+    let lastActivityTime = Date.now();
     let lastLogTime = Date.now();
     let lineBuffer = '';
+    let resolved = false;
+    let stuckCheckInterval: NodeJS.Timeout;
+    let maxTimeoutId: NodeJS.Timeout;
+
+    const cleanup = () => {
+      if (stuckCheckInterval) clearInterval(stuckCheckInterval);
+      if (maxTimeoutId) clearTimeout(maxTimeoutId);
+    };
+
+    const handleResolve = (result: { success: boolean; output: string; error?: string }) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(result);
+    };
 
     // Stream stdout in real-time
     claude.stdout.on('data', (data) => {
       const chunk = data.toString();
       stdout += chunk;
       lineBuffer += chunk;
+      lastActivityTime = Date.now();  // Update activity timestamp
 
       // Log complete lines
       const lines = lineBuffer.split('\n');
@@ -226,6 +288,7 @@ async function runClaudeCode(
     claude.stderr.on('data', (data) => {
       const chunk = data.toString();
       stderr += chunk;
+      lastActivityTime = Date.now();  // stderr is also activity
       // Log errors immediately
       if (chunk.trim()) {
         console.log(`[Claude:err] ${chunk.trim().slice(0, 200)}`);
@@ -239,7 +302,7 @@ async function runClaudeCode(
       }
       console.log(`[Cycle] Claude exited with code ${code}`);
 
-      resolve({
+      handleResolve({
         success: code === 0,
         output: stdout,
         error: code !== 0 ? stderr || `Exit code: ${code}` : undefined,
@@ -248,35 +311,61 @@ async function runClaudeCode(
 
     claude.on('error', (err) => {
       console.log(`[Cycle] Claude spawn error: ${err.message}`);
-      resolve({
+      handleResolve({
         success: false,
         output: '',
         error: err.message,
       });
     });
 
-    // Progress indicator every 30 seconds
-    const progressInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - lastLogTime) / 1000);
-      if (elapsed > 30) {
-        console.log(`[Cycle] Still working... (${stdout.length} chars output so far)`);
+    // Stuck detection: check every 15 seconds if no output for 90 seconds
+    stuckCheckInterval = setInterval(() => {
+      const timeSinceActivity = Date.now() - lastActivityTime;
+      const totalTime = Date.now() - (lastActivityTime - timeSinceActivity);
+
+      if (timeSinceActivity > NO_OUTPUT_TIMEOUT) {
+        console.log(`[Cycle] ⚠️ STUCK DETECTED: No output for ${Math.floor(timeSinceActivity / 1000)}s`);
+        console.log(`[Cycle] Current output: ${stdout.length} chars`);
+
+        // Kill the stuck process
+        claude.kill('SIGTERM');
+
+        // Retry if we haven't exceeded max retries
+        if (attempt < MAX_RETRIES) {
+          console.log(`[Cycle] 🔄 Retrying... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          cleanup();
+
+          // Small delay before retry
+          setTimeout(() => {
+            runClaudeCode(prompt, { ...options, attempt: attempt + 1 })
+              .then(handleResolve);
+          }, 2000);
+        } else {
+          console.log(`[Cycle] ❌ Max retries exceeded, giving up`);
+          handleResolve({
+            success: false,
+            output: stdout,
+            error: `Stuck after ${MAX_RETRIES} attempts (no output for ${NO_OUTPUT_TIMEOUT / 1000}s)`,
+          });
+        }
+      } else {
+        // Progress indicator
+        console.log(`[Cycle] ⏳ Working... (${stdout.length} chars, last activity ${Math.floor(timeSinceActivity / 1000)}s ago)`);
       }
-    }, 30000);
+    }, 15000);
 
-    // Timeout after 10 minutes
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      claude.kill('SIGTERM');
-      console.log(`[Cycle] Timeout - killing Claude process`);
-      resolve({
-        success: false,
-        output: stdout,
-        error: 'Cycle timeout (10 minutes)',
-      });
-    }, 10 * 60 * 1000);
-
-    // Clear interval on close
-    claude.on('close', () => clearInterval(progressInterval));
+    // Hard timeout after 5 minutes
+    maxTimeoutId = setTimeout(() => {
+      if (!resolved) {
+        console.log(`[Cycle] ⏰ Max cycle time (${MAX_CYCLE_TIME / 1000}s) reached`);
+        claude.kill('SIGTERM');
+        handleResolve({
+          success: false,
+          output: stdout,
+          error: `Cycle timeout (${MAX_CYCLE_TIME / 1000}s)`,
+        });
+      }
+    }, MAX_CYCLE_TIME);
   });
 }
 
