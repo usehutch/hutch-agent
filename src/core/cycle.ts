@@ -205,6 +205,7 @@ async function runClaudeCode(
 
     const args = [
       '--print',
+      '--verbose',                       // Required for stream-json
       '--output-format', 'stream-json',  // Real-time streaming JSON
       '--include-partial-messages',      // See partial messages as they arrive
       '--dangerously-skip-permissions',
