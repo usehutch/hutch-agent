@@ -182,11 +182,10 @@ Begin working on the task.
 }
 
 /**
- * Run Claude Code CLI with a prompt
+ * Run Claude Code CLI with a prompt using streaming JSON output
  *
- * NOTE: Claude CLI --print mode buffers ALL output until completion.
- * There's no streaming output, so we can't detect "stuck" based on no output.
- * We use a generous max timeout and trust the process to complete.
+ * Uses --output-format stream-json for real-time visibility into what
+ * Claude is doing (tool calls, results, etc.)
  */
 async function runClaudeCode(
   prompt: string,
@@ -195,50 +194,54 @@ async function runClaudeCode(
     maxTurns?: number;
   }
 ): Promise<{ success: boolean; output: string; error?: string }> {
-  // 15 minutes max - some tasks (installing Anchor, running tests) take a while
+  // 15 minutes max - some tasks take time
   const MAX_CYCLE_TIME = 15 * 60 * 1000;
+  // No activity for 2 minutes = stuck
+  const STUCK_TIMEOUT = 2 * 60 * 1000;
 
   return new Promise((resolve) => {
-    // Ensure working directory exists
     const cwd = options.cwd || process.cwd();
     mkdirSync(cwd, { recursive: true });
 
     const args = [
-      '--print',  // Non-interactive mode (buffers all output until completion)
-      '--dangerously-skip-permissions',  // Auto-approve
-      '--model', 'sonnet',  // Use Sonnet for speed/cost
-      '--max-turns', '50',  // Limit turns
+      '--print',
+      '--output-format', 'stream-json',  // Real-time streaming JSON
+      '--include-partial-messages',      // See partial messages as they arrive
+      '--dangerously-skip-permissions',
+      '--model', 'sonnet',
+      '--max-turns', String(options.maxTurns || 50),
       prompt,
     ];
 
     const startTime = Date.now();
+    let lastActivityTime = Date.now();
     console.log(`[Cycle] Running claude in ${cwd}`);
-    console.log(`[Cycle] Prompt length: ${prompt.length} chars`);
+    console.log(`[Cycle] Prompt: ${prompt.slice(0, 200)}...`);
 
     const claude = spawn('claude', args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: false,  // Don't use shell to avoid escaping issues
+      shell: false,
       env: {
         ...process.env,
-        // Load Colosseum credentials if available
         ...loadEnvFile(),
       },
     });
 
-    // Close stdin immediately to signal no more input
     claude.stdin.end();
 
     let stdout = '';
     let stderr = '';
-    let lastLogTime = Date.now();
     let lineBuffer = '';
     let resolved = false;
-    let progressInterval: NodeJS.Timeout;
+    let stuckCheckInterval: NodeJS.Timeout;
     let maxTimeoutId: NodeJS.Timeout;
+    let lastTool = '';
+    let toolCount = 0;
+    let resultText = '';  // Accumulate result text
 
     const cleanup = () => {
-      if (progressInterval) clearInterval(progressInterval);
+      if (stuckCheckInterval) clearInterval(stuckCheckInterval);
       if (maxTimeoutId) clearTimeout(maxTimeoutId);
     };
 
@@ -249,36 +252,98 @@ async function runClaudeCode(
       resolve(result);
     };
 
-    // Stream stdout in real-time (though --print buffers until completion)
+    // Parse streaming JSON output
     claude.stdout.on('data', (data) => {
       const chunk = data.toString();
       stdout += chunk;
       lineBuffer += chunk;
+      lastActivityTime = Date.now();
 
-      // Log complete lines
+      // Process complete JSON lines
       const lines = lineBuffer.split('\n');
-      lineBuffer = lines.pop() || ''; // Keep incomplete line in buffer
+      lineBuffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (line.trim()) {
-          // Detect tool usage patterns
-          if (line.includes('Read') || line.includes('Write') || line.includes('Edit')) {
-            console.log(`[Claude] 📄 ${line.slice(0, 150)}`);
-          } else if (line.includes('Bash') || line.includes('running')) {
-            console.log(`[Claude] 💻 ${line.slice(0, 150)}`);
-          } else if (line.includes('TASK_COMPLETE')) {
-            console.log(`[Claude] ✅ Task marked complete`);
-          } else if (line.includes('TASK_BLOCKED')) {
-            console.log(`[Claude] 🚫 Task blocked: ${line.slice(0, 100)}`);
-          } else if (line.includes('error') || line.includes('Error')) {
-            console.log(`[Claude] ⚠️ ${line.slice(0, 150)}`);
-          } else {
-            // Log periodic updates
-            const now = Date.now();
-            if (now - lastLogTime > 5000) { // Every 5 seconds
-              console.log(`[Claude] ${line.slice(0, 150)}`);
-              lastLogTime = now;
-            }
+        if (!line.trim()) continue;
+
+        try {
+          const event = JSON.parse(line);
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+          // Handle different event types
+          switch (event.type) {
+            case 'assistant':
+              // Assistant is thinking/speaking
+              if (event.message?.content) {
+                for (const block of event.message.content) {
+                  if (block.type === 'text' && block.text) {
+                    resultText += block.text;
+                    // Log meaningful text (not just whitespace)
+                    const text = block.text.trim();
+                    if (text.length > 10) {
+                      console.log(`[Claude ${elapsed}s] 💬 ${text.slice(0, 150)}`);
+                    }
+                    if (text.includes('TASK_COMPLETE')) {
+                      console.log(`[Claude ${elapsed}s] ✅ TASK_COMPLETE`);
+                    }
+                    if (text.includes('TASK_BLOCKED')) {
+                      console.log(`[Claude ${elapsed}s] 🚫 TASK_BLOCKED`);
+                    }
+                  } else if (block.type === 'tool_use') {
+                    toolCount++;
+                    lastTool = block.name;
+                    const input = JSON.stringify(block.input || {}).slice(0, 100);
+                    console.log(`[Claude ${elapsed}s] 🔧 Tool #${toolCount}: ${block.name} ${input}`);
+                  }
+                }
+              }
+              break;
+
+            case 'content_block_start':
+              if (event.content_block?.type === 'tool_use') {
+                lastTool = event.content_block.name;
+                console.log(`[Claude ${elapsed}s] 🔧 Starting: ${lastTool}`);
+              }
+              break;
+
+            case 'content_block_delta':
+              // Streaming partial content
+              if (event.delta?.partial_json) {
+                // Tool input streaming - just note it's working
+              } else if (event.delta?.text) {
+                resultText += event.delta.text;
+              }
+              break;
+
+            case 'result':
+              // Final result
+              console.log(`[Claude ${elapsed}s] ✓ Result: ${event.subtype || 'complete'}`);
+              if (event.result) {
+                resultText = event.result;
+              }
+              break;
+
+            case 'error':
+              console.log(`[Claude ${elapsed}s] ❌ Error: ${event.error?.message || JSON.stringify(event)}`);
+              break;
+
+            case 'system':
+              // System messages (model info, etc.)
+              if (event.subtype === 'init') {
+                console.log(`[Claude ${elapsed}s] 📋 Session: ${event.session_id?.slice(0, 8) || 'unknown'}`);
+              }
+              break;
+
+            default:
+              // Log unknown events for debugging
+              if (event.type && !['message_start', 'message_delta', 'message_stop', 'content_block_stop'].includes(event.type)) {
+                console.log(`[Claude ${elapsed}s] 📦 ${event.type}: ${JSON.stringify(event).slice(0, 80)}`);
+              }
+          }
+        } catch (e) {
+          // Not JSON, log raw if meaningful
+          if (line.trim().length > 10) {
+            console.log(`[Claude] ${line.slice(0, 150)}`);
           }
         }
       }
@@ -287,7 +352,7 @@ async function runClaudeCode(
     claude.stderr.on('data', (data) => {
       const chunk = data.toString();
       stderr += chunk;
-      // Log errors immediately
+      lastActivityTime = Date.now();
       if (chunk.trim()) {
         console.log(`[Claude:err] ${chunk.trim().slice(0, 200)}`);
       }
@@ -295,15 +360,11 @@ async function runClaudeCode(
 
     claude.on('close', (code) => {
       const duration = Math.floor((Date.now() - startTime) / 1000);
-      // Log any remaining buffer
-      if (lineBuffer.trim()) {
-        console.log(`[Claude] ${lineBuffer.slice(0, 150)}`);
-      }
-      console.log(`[Cycle] Claude exited with code ${code} after ${duration}s`);
+      console.log(`[Cycle] Claude exited with code ${code} after ${duration}s (${toolCount} tools used)`);
 
       handleResolve({
         success: code === 0,
-        output: stdout,
+        output: resultText || stdout,
         error: code !== 0 ? stderr || `Exit code: ${code}` : undefined,
       });
     });
@@ -317,22 +378,35 @@ async function runClaudeCode(
       });
     });
 
-    // Progress indicator every 30 seconds (just shows we're waiting, no stuck detection)
-    progressInterval = setInterval(() => {
+    // Stuck detection: no activity for 2 minutes
+    stuckCheckInterval = setInterval(() => {
+      const timeSinceActivity = Date.now() - lastActivityTime;
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      console.log(`[Cycle] ⏳ Working... (${elapsed}s elapsed, ${stdout.length} chars received)`);
-    }, 30000);
 
-    // Hard timeout after 15 minutes
-    maxTimeoutId = setTimeout(() => {
-      if (!resolved) {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        console.log(`[Cycle] ⏰ Max cycle time (${MAX_CYCLE_TIME / 1000}s) reached after ${elapsed}s`);
+      if (timeSinceActivity > STUCK_TIMEOUT) {
+        console.log(`[Cycle] ⚠️ STUCK: No activity for ${Math.floor(timeSinceActivity / 1000)}s`);
+        console.log(`[Cycle] Last tool: ${lastTool || 'none'}, Tools used: ${toolCount}`);
         claude.kill('SIGTERM');
         handleResolve({
           success: false,
-          output: stdout,
-          error: `Cycle timeout (${MAX_CYCLE_TIME / 1000}s)`,
+          output: resultText || stdout,
+          error: `Stuck - no activity for ${STUCK_TIMEOUT / 1000}s`,
+        });
+      } else {
+        console.log(`[Cycle] ⏳ ${elapsed}s | Tools: ${toolCount} | Last: ${lastTool || 'starting'}`);
+      }
+    }, 30000);
+
+    // Hard timeout
+    maxTimeoutId = setTimeout(() => {
+      if (!resolved) {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        console.log(`[Cycle] ⏰ Timeout after ${elapsed}s`);
+        claude.kill('SIGTERM');
+        handleResolve({
+          success: false,
+          output: resultText || stdout,
+          error: `Timeout (${MAX_CYCLE_TIME / 1000}s)`,
         });
       }
     }, MAX_CYCLE_TIME);
