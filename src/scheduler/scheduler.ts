@@ -4,12 +4,13 @@
  * Manages goals, tasks, and priority ordering.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
 const NEXUS_DIR = join(homedir(), '.nexus');
 const GOALS_DIR = join(NEXUS_DIR, 'goals');
+const COMPLETED_TASKS_FILE = join(NEXUS_DIR, 'completed-tasks.json');
 
 export interface Task {
   id: string;
@@ -46,13 +47,44 @@ interface GoalConfig {
 
 export class Scheduler {
   private goals: Goal[] = [];
+  private completedTaskIds: Set<string> = new Set();
   private minCycleMs = 5000;   // Minimum 5 seconds between cycles
   private maxCycleMs = 60000;  // Maximum 60 seconds
+
+  /**
+   * Load completed tasks from persistent storage
+   */
+  private loadCompletedTasks(): void {
+    try {
+      if (existsSync(COMPLETED_TASKS_FILE)) {
+        const data = JSON.parse(readFileSync(COMPLETED_TASKS_FILE, 'utf-8')) as { taskIds: string[] };
+        this.completedTaskIds = new Set(data.taskIds || []);
+        console.log(`[Scheduler] Loaded ${this.completedTaskIds.size} completed tasks from storage`);
+      }
+    } catch (err) {
+      console.error('[Scheduler] Failed to load completed tasks:', err);
+    }
+  }
+
+  /**
+   * Save completed tasks to persistent storage
+   */
+  private saveCompletedTasks(): void {
+    try {
+      mkdirSync(NEXUS_DIR, { recursive: true });
+      const data = { taskIds: Array.from(this.completedTaskIds) };
+      writeFileSync(COMPLETED_TASKS_FILE, JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.error('[Scheduler] Failed to save completed tasks:', err);
+    }
+  }
 
   /**
    * Load goals from goals directory
    */
   async loadGoals(): Promise<void> {
+    // Load previously completed tasks first
+    this.loadCompletedTasks();
     this.goals = [];
 
     // Check for default goals file
@@ -93,14 +125,21 @@ export class Scheduler {
     if (config.objectives) {
       for (const obj of config.objectives) {
         for (const taskName of obj.tasks) {
+          const taskId = `${obj.id}-${tasks.length}`;
+          const isCompleted = this.completedTaskIds.has(taskId);
           tasks.push({
-            id: `${obj.id}-${tasks.length}`,
+            id: taskId,
             name: taskName,
-            status: 'pending',
+            status: isCompleted ? 'completed' : 'pending',
+            completedAt: isCompleted ? new Date().toISOString() : undefined,
           });
         }
       }
     }
+
+    // Calculate initial progress
+    const completed = tasks.filter(t => t.status === 'completed').length;
+    const progress = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
 
     return {
       id,
@@ -111,7 +150,7 @@ export class Scheduler {
       workingDirectory: config.workingDirectory,
       tasks,
       status: 'active',
-      progress: 0,
+      progress,
     };
   }
 
@@ -154,11 +193,39 @@ export class Scheduler {
     if (task) {
       task.status = 'completed';
       task.completedAt = new Date().toISOString();
+
+      // Persist to storage
+      this.completedTaskIds.add(taskId);
+      this.saveCompletedTasks();
     }
 
     // Update goal progress
     const completed = goal.tasks.filter(t => t.status === 'completed').length;
     goal.progress = Math.round((completed / goal.tasks.length) * 100);
+  }
+
+  /**
+   * Manually mark tasks as completed (for bootstrap)
+   */
+  markTasksCompletedByPattern(pattern: RegExp): number {
+    let count = 0;
+    for (const goal of this.goals) {
+      for (const task of goal.tasks) {
+        if (pattern.test(task.name) && task.status !== 'completed') {
+          task.status = 'completed';
+          task.completedAt = new Date().toISOString();
+          this.completedTaskIds.add(task.id);
+          count++;
+        }
+      }
+      // Update progress
+      const completed = goal.tasks.filter(t => t.status === 'completed').length;
+      goal.progress = Math.round((completed / goal.tasks.length) * 100);
+    }
+    if (count > 0) {
+      this.saveCompletedTasks();
+    }
+    return count;
   }
 
   /**
