@@ -131,7 +131,7 @@ sed -i "s|\$HOME|$HOME|g" "$HOME/.claude/settings.json"
 echo "[9/9] Setting up Nexus Agent..."
 NEXUS_DIR="$HOME/nexus"
 if [ ! -d "$NEXUS_DIR" ]; then
-    git clone https://github.com/usehutch/nexus.git "$NEXUS_DIR"
+    git clone https://github.com/usehutch/hutch-agent.git "$NEXUS_DIR"
 fi
 cd "$NEXUS_DIR"
 bun install
