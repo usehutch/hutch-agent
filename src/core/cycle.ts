@@ -161,6 +161,7 @@ async function runClaudeCode(
     const args = [
       '--print',  // Non-interactive mode
       '--dangerously-skip-permissions',  // Auto-approve
+      '--model', 'sonnet',  // Use Sonnet for speed/cost
       '--max-turns', '50',  // Limit turns
       prompt,
     ];

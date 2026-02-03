@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "bun run src/cli/index.ts start",
+    "start": "bun run build && bun dist/core/loop.js",
+    "loop": "bun dist/core/loop.js",
     "nexus": "bun run src/cli/index.ts"
   },
   "dependencies": {
