@@ -32,3 +32,4 @@ export { ColosseumWorker } from './social/colosseum.js';
 // Workers
 export { SolanaWorker } from './workers/solana.js';
 export { ResearchWorker } from './workers/research.js';
+export { UpdaterWorker } from './workers/updater.js';

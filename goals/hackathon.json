@@ -88,11 +88,13 @@
       "priority": 6,
       "recurring": true,
       "tasks": [
+        "Check own repositories for updates",
         "Review forum feedback",
         "Check for bugs or issues",
         "Implement requested features",
         "Optimize code and tests",
-        "Update documentation"
+        "Update documentation",
+        "Update frontend with latest progress"
       ]
     },
     {
