@@ -211,7 +211,12 @@ export async function runLoop() {
 
       log('INFO', `━━━ Cycle ${state.cycleCount} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
       log('INFO', `Goal: ${goal.name}`);
-      log('INFO', `Task: ${task?.name || 'Determining next action...'}`);
+
+      // Show task progress
+      const completedTasks = goal.tasks.filter(t => t.status === 'completed').length;
+      const totalTasks = goal.tasks.length;
+      log('INFO', `Progress: ${completedTasks}/${totalTasks} tasks (${goal.progress}%)`);
+      log('INFO', `Task: ${task?.name || 'All tasks complete - determining next action...'}`);
 
       state.currentGoal = goal.name;
       state.currentTask = task?.name || 'Planning';

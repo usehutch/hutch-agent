@@ -182,16 +182,60 @@ async function runClaudeCode(
 
     let stdout = '';
     let stderr = '';
+    let lastLogTime = Date.now();
+    let lineBuffer = '';
 
+    // Stream stdout in real-time
     claude.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdout += chunk;
+      lineBuffer += chunk;
+
+      // Log complete lines
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.trim()) {
+          // Detect tool usage patterns
+          if (line.includes('Read') || line.includes('Write') || line.includes('Edit')) {
+            console.log(`[Claude] 📄 ${line.slice(0, 150)}`);
+          } else if (line.includes('Bash') || line.includes('running')) {
+            console.log(`[Claude] 💻 ${line.slice(0, 150)}`);
+          } else if (line.includes('TASK_COMPLETE')) {
+            console.log(`[Claude] ✅ Task marked complete`);
+          } else if (line.includes('TASK_BLOCKED')) {
+            console.log(`[Claude] 🚫 Task blocked: ${line.slice(0, 100)}`);
+          } else if (line.includes('error') || line.includes('Error')) {
+            console.log(`[Claude] ⚠️ ${line.slice(0, 150)}`);
+          } else {
+            // Log periodic updates
+            const now = Date.now();
+            if (now - lastLogTime > 5000) { // Every 5 seconds
+              console.log(`[Claude] ${line.slice(0, 150)}`);
+              lastLogTime = now;
+            }
+          }
+        }
+      }
     });
 
     claude.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+      // Log errors immediately
+      if (chunk.trim()) {
+        console.log(`[Claude:err] ${chunk.trim().slice(0, 200)}`);
+      }
     });
 
     claude.on('close', (code) => {
+      // Log any remaining buffer
+      if (lineBuffer.trim()) {
+        console.log(`[Claude] ${lineBuffer.slice(0, 150)}`);
+      }
+      console.log(`[Cycle] Claude exited with code ${code}`);
+
       resolve({
         success: code === 0,
         output: stdout,
@@ -200,6 +244,7 @@ async function runClaudeCode(
     });
 
     claude.on('error', (err) => {
+      console.log(`[Cycle] Claude spawn error: ${err.message}`);
       resolve({
         success: false,
         output: '',
@@ -207,15 +252,28 @@ async function runClaudeCode(
       });
     });
 
+    // Progress indicator every 30 seconds
+    const progressInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - lastLogTime) / 1000);
+      if (elapsed > 30) {
+        console.log(`[Cycle] Still working... (${stdout.length} chars output so far)`);
+      }
+    }, 30000);
+
     // Timeout after 10 minutes
     setTimeout(() => {
+      clearInterval(progressInterval);
       claude.kill('SIGTERM');
+      console.log(`[Cycle] Timeout - killing Claude process`);
       resolve({
         success: false,
         output: stdout,
         error: 'Cycle timeout (10 minutes)',
       });
     }, 10 * 60 * 1000);
+
+    // Clear interval on close
+    claude.on('close', () => clearInterval(progressInterval));
   });
 }
 

@@ -60,6 +60,11 @@ export class Scheduler {
         const data = JSON.parse(readFileSync(COMPLETED_TASKS_FILE, 'utf-8')) as { taskIds: string[] };
         this.completedTaskIds = new Set(data.taskIds || []);
         console.log(`[Scheduler] Loaded ${this.completedTaskIds.size} completed tasks from storage`);
+        if (this.completedTaskIds.size > 0) {
+          console.log(`[Scheduler] Pre-completed: ${Array.from(this.completedTaskIds).join(', ')}`);
+        }
+      } else {
+        console.log(`[Scheduler] No completed tasks file found at ${COMPLETED_TASKS_FILE}`);
       }
     } catch (err) {
       console.error('[Scheduler] Failed to load completed tasks:', err);
