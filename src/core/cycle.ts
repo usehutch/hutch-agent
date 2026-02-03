@@ -180,6 +180,9 @@ async function runClaudeCode(
       },
     });
 
+    // Close stdin immediately to signal no more input
+    claude.stdin.end();
+
     let stdout = '';
     let stderr = '';
     let lastLogTime = Date.now();
