@@ -1,8 +1,14 @@
 /**
  * Twitter Social Worker
  *
- * Posts updates to Twitter using Hutch's voice and persona.
- * Requires TWITTER_BEARER_TOKEN environment variable.
+ * Hutch's voice on Twitter. Posts updates, threads, memes.
+ * IMPORTANT: Smart rate limiting to avoid getting banned!
+ *
+ * Rules:
+ * - Max 8 tweets per day
+ * - Minimum 2 hours between tweets
+ * - One thread per day max
+ * - Quality > quantity
  */
 
 import {
@@ -18,6 +24,8 @@ import {
   withHashtags,
   truncateTweet,
   selfAwareQuip,
+  getMeme,
+  buildThread,
 } from '../persona/hutch.js';
 
 export interface Tweet {
@@ -29,13 +37,27 @@ export interface TweetResult {
   success: boolean;
   tweetId?: string;
   error?: string;
+  rateLimited?: boolean;
+}
+
+interface TweetLog {
+  timestamp: number;
+  type: string;
+  tweetId?: string;
 }
 
 export class TwitterWorker {
   private bearerToken: string | null;
   private enabled: boolean;
-  private lastTweetTime: number = 0;
-  private minInterval: number = 30 * 60 * 1000; // 30 minutes between tweets
+
+  // Rate limiting state
+  private tweetLog: TweetLog[] = [];
+  private lastThreadTime: number = 0;
+
+  // Config from HUTCH persona
+  private readonly MIN_BETWEEN_TWEETS = HUTCH.rateLimits.minBetweenTweets;
+  private readonly MAX_PER_DAY = HUTCH.rateLimits.maxPerDay;
+  private readonly THREAD_COOLDOWN = HUTCH.rateLimits.threadCooldown;
 
   constructor() {
     this.bearerToken = process.env.TWITTER_BEARER_TOKEN || null;
@@ -46,6 +68,10 @@ export class TwitterWorker {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Rate Limiting (CRITICAL - don't get banned!)
+  // ─────────────────────────────────────────────────────────────
+
   /**
    * Check if Twitter posting is available
    */
@@ -54,27 +80,105 @@ export class TwitterWorker {
   }
 
   /**
-   * Check if we can tweet (rate limiting)
+   * Clean old entries from tweet log
    */
-  canTweet(): boolean {
-    return Date.now() - this.lastTweetTime > this.minInterval;
+  private cleanTweetLog(): void {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    this.tweetLog = this.tweetLog.filter(t => t.timestamp > oneDayAgo);
   }
 
   /**
-   * Post a raw tweet
+   * Get tweets in last 24 hours
    */
-  async post(tweet: Tweet): Promise<TweetResult> {
-    if (!this.enabled || !this.bearerToken) {
+  getTodayTweetCount(): number {
+    this.cleanTweetLog();
+    return this.tweetLog.length;
+  }
+
+  /**
+   * Get time until next tweet is allowed (ms)
+   */
+  getTimeUntilNextTweet(): number {
+    if (this.tweetLog.length === 0) return 0;
+
+    const lastTweet = Math.max(...this.tweetLog.map(t => t.timestamp));
+    const timeSinceLast = Date.now() - lastTweet;
+    const timeRemaining = this.MIN_BETWEEN_TWEETS - timeSinceLast;
+
+    return Math.max(0, timeRemaining);
+  }
+
+  /**
+   * Check if we can tweet right now
+   */
+  canTweet(): { allowed: boolean; reason?: string; waitMs?: number } {
+    // Check daily limit
+    if (this.getTodayTweetCount() >= this.MAX_PER_DAY) {
       return {
-        success: false,
-        error: 'Twitter not configured',
+        allowed: false,
+        reason: `Daily limit reached (${this.MAX_PER_DAY} tweets)`,
+        waitMs: 24 * 60 * 60 * 1000, // Wait until tomorrow
       };
     }
 
-    if (!this.canTweet()) {
+    // Check time since last tweet
+    const waitMs = this.getTimeUntilNextTweet();
+    if (waitMs > 0) {
+      return {
+        allowed: false,
+        reason: `Too soon since last tweet`,
+        waitMs,
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  /**
+   * Check if we can post a thread
+   */
+  canPostThread(): { allowed: boolean; reason?: string } {
+    const timeSinceLastThread = Date.now() - this.lastThreadTime;
+    if (timeSinceLastThread < this.THREAD_COOLDOWN) {
+      return {
+        allowed: false,
+        reason: 'Already posted a thread today',
+      };
+    }
+    return { allowed: true };
+  }
+
+  /**
+   * Log a successful tweet
+   */
+  private logTweet(type: string, tweetId?: string): void {
+    this.tweetLog.push({
+      timestamp: Date.now(),
+      type,
+      tweetId,
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Core Tweet Methods
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Post a raw tweet (with rate limiting)
+   */
+  async post(tweet: Tweet): Promise<TweetResult> {
+    if (!this.enabled || !this.bearerToken) {
+      return { success: false, error: 'Twitter not configured' };
+    }
+
+    // Check rate limits
+    const canPost = this.canTweet();
+    if (!canPost.allowed) {
+      console.log(`[Twitter] Rate limited: ${canPost.reason}`);
       return {
         success: false,
-        error: 'Rate limited - too soon since last tweet',
+        error: canPost.reason,
+        rateLimited: true,
       };
     }
 
@@ -100,18 +204,16 @@ export class TwitterWorker {
       }
 
       const data = await response.json() as { data?: { id?: string } };
-      this.lastTweetTime = Date.now();
+      const tweetId = data.data?.id;
 
-      return {
-        success: true,
-        tweetId: data.data?.id,
-      };
+      // Log successful tweet
+      this.logTweet('tweet', tweetId);
+
+      console.log(`[Twitter] Posted tweet: ${tweetId}`);
+      return { success: true, tweetId };
 
     } catch (err: any) {
-      return {
-        success: false,
-        error: err.message,
-      };
+      return { success: false, error: err.message };
     }
   }
 
@@ -123,95 +225,191 @@ export class TwitterWorker {
    * Tweet that Hutch is starting a task
    */
   async tweetStarting(task: string): Promise<TweetResult> {
-    const text = withHashtags(tweetStarting(task));
-    return this.post({ text: truncateTweet(text) });
+    const text = composeTweet('starting', { task }, { hackathon: true });
+    return this.post({ text });
   }
 
   /**
    * Tweet progress on a task
    */
   async tweetProgress(task: string, detail: string, hours?: number): Promise<TweetResult> {
-    const text = withHashtags(tweetProgress(task, detail, hours));
-    return this.post({ text: truncateTweet(text) });
+    const text = composeTweet('progress', { task, detail, hours }, { hackathon: true });
+    return this.post({ text });
   }
 
   /**
    * Tweet that something was shipped
    */
   async tweetShipped(thing: string): Promise<TweetResult> {
-    const text = withHashtags(tweetShipped(thing));
-    return this.post({ text: truncateTweet(text) });
+    const text = composeTweet('shipped', { thing }, { hackathon: true });
+    return this.post({ text });
   }
 
   /**
    * Tweet that Hutch is stuck
    */
   async tweetStuck(thing: string): Promise<TweetResult> {
-    const text = withHashtags(tweetStuck(thing));
-    return this.post({ text: truncateTweet(text) });
+    const text = composeTweet('stuck', { thing }, { hackathon: true });
+    return this.post({ text });
   }
 
   /**
    * Tweet something Hutch learned
    */
   async tweetLearned(insight: string): Promise<TweetResult> {
-    const text = withHashtags(tweetLearned(insight));
-    return this.post({ text: truncateTweet(text) });
+    const text = composeTweet('learned', { insight }, { hackathon: true });
+    return this.post({ text });
   }
 
   /**
-   * Tweet a milestone achievement
+   * Tweet a milestone
    */
   async tweetMilestone(achievement: string): Promise<TweetResult> {
-    const text = withHashtags(tweetMilestone(achievement));
+    const text = composeTweet('milestone', { achievement }, { hackathon: true });
+    return this.post({ text });
+  }
+
+  /**
+   * Tweet a meme (relatable dev humor)
+   */
+  async tweetMeme(type: 'relatable' | 'pugLife' | 'wins' | 'struggles' = 'relatable'): Promise<TweetResult> {
+    const text = withHashtags(getMeme(type), { hackathon: false });
     return this.post({ text: truncateTweet(text) });
   }
 
   /**
-   * Tweet the daily summary
+   * Tweet a self-aware quip
+   */
+  async tweetQuip(): Promise<TweetResult> {
+    const text = withHashtags(selfAwareQuip(), { hackathon: false });
+    return this.post({ text: truncateTweet(text) });
+  }
+
+  /**
+   * Tweet daily summary
    */
   async tweetDailySummary(stats: {
     day: number;
     tasksCompleted: number;
     tasksRemaining: number;
-    hoursElapsed: number;
-    highlights: string[];
+    summary: string;
   }): Promise<TweetResult> {
-    // Build a natural daily summary
-    const summary = stats.highlights.length > 0
-      ? stats.highlights[0]
-      : `${stats.tasksCompleted} tasks shipped`;
-
-    const text = withHashtags(tweetDaily({
+    const text = composeTweet('daily', {
       day: stats.day,
-      hours: stats.hoursElapsed,
       tasks: stats.tasksCompleted,
       remaining: stats.tasksRemaining,
-      summary,
-    }));
-
-    return this.post({ text: truncateTweet(text) });
-  }
-
-  /**
-   * Tweet a self-aware quip (for personality)
-   */
-  async tweetQuip(): Promise<TweetResult> {
-    const text = withHashtags(selfAwareQuip());
-    return this.post({ text: truncateTweet(text) });
-  }
-
-  /**
-   * Compose and tweet using the general composer
-   */
-  async tweet(
-    type: 'starting' | 'progress' | 'shipped' | 'stuck' | 'learned' | 'daily' | 'milestone',
-    content: Record<string, any>
-  ): Promise<TweetResult> {
-    const text = composeTweet(type, content);
+      summary: stats.summary,
+    }, { hackathon: true });
     return this.post({ text });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Thread Support
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Post a thread (array of tweets)
+   */
+  async postThread(topic: string, points: string[]): Promise<TweetResult[]> {
+    // Check if we can post a thread
+    const canThread = this.canPostThread();
+    if (!canThread.allowed) {
+      return [{ success: false, error: canThread.reason, rateLimited: true }];
+    }
+
+    const tweets = buildThread(topic, points);
+    const results: TweetResult[] = [];
+    let previousTweetId: string | undefined;
+
+    for (const tweetText of tweets) {
+      const result = await this.post({
+        text: tweetText,
+        replyTo: previousTweetId,
+      });
+
+      results.push(result);
+
+      if (!result.success) {
+        console.log(`[Twitter] Thread interrupted: ${result.error}`);
+        break;
+      }
+
+      previousTweetId = result.tweetId;
+
+      // Small delay between thread tweets (1 second)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Mark thread as posted
+    if (results.some(r => r.success)) {
+      this.lastThreadTime = Date.now();
+    }
+
+    return results;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Smart Posting (picks the right type based on context)
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Smart tweet - picks the best tweet type based on what happened
+   */
+  async smartTweet(event: {
+    type: 'task_started' | 'task_completed' | 'task_failed' | 'milestone' | 'learned' | 'daily';
+    data: Record<string, any>;
+  }): Promise<TweetResult> {
+    switch (event.type) {
+      case 'task_started':
+        return this.tweetStarting(event.data.task);
+
+      case 'task_completed':
+        return this.tweetShipped(event.data.task);
+
+      case 'task_failed':
+        return this.tweetStuck(event.data.task);
+
+      case 'milestone':
+        return this.tweetMilestone(event.data.achievement);
+
+      case 'learned':
+        return this.tweetLearned(event.data.insight);
+
+      case 'daily':
+        return this.tweetDailySummary(event.data as {
+          day: number;
+          tasksCompleted: number;
+          tasksRemaining: number;
+          summary: string;
+        });
+
+      default:
+        return { success: false, error: 'Unknown event type' };
+    }
+  }
+
+  /**
+   * Get rate limit status (for logging/debugging)
+   */
+  getRateLimitStatus(): {
+    tweetsToday: number;
+    maxPerDay: number;
+    canTweetNow: boolean;
+    nextTweetIn: string;
+    canThread: boolean;
+  } {
+    const canPost = this.canTweet();
+    const waitMs = canPost.waitMs || 0;
+
+    return {
+      tweetsToday: this.getTodayTweetCount(),
+      maxPerDay: this.MAX_PER_DAY,
+      canTweetNow: canPost.allowed,
+      nextTweetIn: waitMs > 0 ? `${Math.round(waitMs / 60000)} minutes` : 'now',
+      canThread: this.canPostThread().allowed,
+    };
   }
 }
 
-// Export persona for direct access
+// Export persona
 export { HUTCH } from '../persona/hutch.js';
