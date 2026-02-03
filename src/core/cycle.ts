@@ -65,7 +65,7 @@ interface CycleResult {
 async function checkHutchMemHealth(): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 3000);
 
     const response = await fetch('http://127.0.0.1:37777/health', {
       signal: controller.signal,
@@ -73,14 +73,35 @@ async function checkHutchMemHealth(): Promise<boolean> {
     clearTimeout(timeout);
 
     if (response.ok) {
-      console.log(`[Cycle] HutchMem worker healthy ✓`);
+      const data = await response.json().catch(() => ({})) as { uptime?: string };
+      console.log(`[Cycle] ✓ HutchMem healthy (uptime: ${data.uptime || 'unknown'})`);
       return true;
     }
-    console.log(`[Cycle] HutchMem worker returned ${response.status}`);
+    console.log(`[Cycle] ⚠️ HutchMem returned ${response.status}`);
     return false;
   } catch (err: any) {
-    console.log(`[Cycle] HutchMem worker not reachable: ${err.message}`);
+    // Not critical - agent can work without memory
+    console.log(`[Cycle] ⚠️ HutchMem not available (${err.message?.slice(0, 50) || 'timeout'})`);
     return false;
+  }
+}
+
+/**
+ * Ensure HutchMem plugin symlinks exist
+ */
+function ensureHutchMemSymlinks(): void {
+  const pluginDir = join(homedir(), '.claude', 'plugins', 'marketplaces', 'thedotmack');
+  const sourceDir = join(homedir(), 'hutch-mem');
+
+  if (!existsSync(pluginDir)) {
+    console.log(`[Cycle] Creating HutchMem plugin symlink directory: ${pluginDir}`);
+    try {
+      mkdirSync(pluginDir, { recursive: true });
+      // The actual symlinks should be created during setup
+      console.log(`[Cycle] ⚠️ HutchMem plugin directory created but symlinks may need manual setup`);
+    } catch (err: any) {
+      console.log(`[Cycle] ⚠️ Could not create plugin directory: ${err.message}`);
+    }
   }
 }
 
@@ -96,11 +117,11 @@ async function checkHutchMemHealth(): Promise<boolean> {
 export async function runCycle(input: CycleInput): Promise<CycleResult> {
   const { goal, task, state, scheduler, customPrompt } = input;
 
-  // Pre-cycle health check
+  // Ensure plugin symlinks exist (one-time setup)
+  ensureHutchMemSymlinks();
+
+  // Pre-cycle health check (non-blocking)
   const hutchMemHealthy = await checkHutchMemHealth();
-  if (!hutchMemHealthy) {
-    console.log(`[Cycle] ⚠️ HutchMem worker not healthy, proceeding anyway`);
-  }
 
   // Use custom prompt from planner if provided, otherwise build default
   const prompt = customPrompt || buildCyclePrompt(goal, task, state);
@@ -253,14 +274,14 @@ async function runClaudeCode(
       resolve(result);
     };
 
-    // Parse streaming JSON output
+    // Parse streaming JSON output for real-time visibility
     claude.stdout.on('data', (data) => {
       const chunk = data.toString();
       stdout += chunk;
       lineBuffer += chunk;
       lastActivityTime = Date.now();
 
-      // Process complete JSON lines
+      // Process complete JSON lines (newline-delimited JSON)
       const lines = lineBuffer.split('\n');
       lineBuffer = lines.pop() || '';
 
@@ -271,80 +292,98 @@ async function runClaudeCode(
           const event = JSON.parse(line);
           const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
-          // Handle different event types
+          // Handle different event types based on Claude CLI stream-json format
           switch (event.type) {
+            case 'system':
+              // System events: init, hook_response
+              if (event.subtype === 'init') {
+                console.log(`[Claude ${elapsed}s] 📋 Session started: ${event.session_id?.slice(0, 8)} | Model: ${event.model}`);
+              } else if (event.subtype === 'hook_response') {
+                // Hook fired - check for errors
+                if (event.stderr && event.exit_code !== 0) {
+                  console.log(`[Claude ${elapsed}s] ⚠️ Hook error: ${event.hook_name}`);
+                }
+              }
+              break;
+
+            case 'stream_event':
+              // Real-time streaming events
+              const streamType = event.event?.type;
+              if (streamType === 'content_block_start') {
+                const block = event.event.content_block;
+                if (block?.type === 'tool_use') {
+                  toolCount++;
+                  lastTool = block.name;
+                  console.log(`[Claude ${elapsed}s] 🔧 Tool #${toolCount}: ${lastTool}`);
+                }
+              } else if (streamType === 'content_block_delta') {
+                const delta = event.event.delta;
+                if (delta?.type === 'text_delta' && delta.text) {
+                  resultText += delta.text;
+                  // Log significant text chunks
+                  const text = delta.text.trim();
+                  if (text.includes('TASK_COMPLETE')) {
+                    console.log(`[Claude ${elapsed}s] ✅ TASK_COMPLETE detected`);
+                  } else if (text.includes('TASK_BLOCKED')) {
+                    console.log(`[Claude ${elapsed}s] 🚫 TASK_BLOCKED detected`);
+                  }
+                } else if (delta?.type === 'input_json_delta') {
+                  // Tool input being streamed - activity indicator
+                }
+              } else if (streamType === 'message_start') {
+                // New message starting
+              }
+              break;
+
             case 'assistant':
-              // Assistant is thinking/speaking
+              // Complete assistant message with tool uses
               if (event.message?.content) {
                 for (const block of event.message.content) {
                   if (block.type === 'text' && block.text) {
-                    resultText += block.text;
-                    // Log meaningful text (not just whitespace)
+                    // Don't double-add - this is the complete message
                     const text = block.text.trim();
-                    if (text.length > 10) {
-                      console.log(`[Claude ${elapsed}s] 💬 ${text.slice(0, 150)}`);
-                    }
-                    if (text.includes('TASK_COMPLETE')) {
-                      console.log(`[Claude ${elapsed}s] ✅ TASK_COMPLETE`);
-                    }
-                    if (text.includes('TASK_BLOCKED')) {
-                      console.log(`[Claude ${elapsed}s] 🚫 TASK_BLOCKED`);
+                    if (text.length > 50) {
+                      console.log(`[Claude ${elapsed}s] 💬 ${text.slice(0, 150)}...`);
                     }
                   } else if (block.type === 'tool_use') {
-                    toolCount++;
-                    lastTool = block.name;
-                    const input = JSON.stringify(block.input || {}).slice(0, 100);
-                    console.log(`[Claude ${elapsed}s] 🔧 Tool #${toolCount}: ${block.name} ${input}`);
+                    // Tool was used
+                    const inputStr = JSON.stringify(block.input || {}).slice(0, 80);
+                    console.log(`[Claude ${elapsed}s] 🔧 ${block.name}: ${inputStr}`);
                   }
                 }
               }
               break;
 
-            case 'content_block_start':
-              if (event.content_block?.type === 'tool_use') {
-                lastTool = event.content_block.name;
-                console.log(`[Claude ${elapsed}s] 🔧 Starting: ${lastTool}`);
-              }
-              break;
-
-            case 'content_block_delta':
-              // Streaming partial content
-              if (event.delta?.partial_json) {
-                // Tool input streaming - just note it's working
-              } else if (event.delta?.text) {
-                resultText += event.delta.text;
+            case 'user':
+              // Tool results coming back
+              if (event.message?.content) {
+                for (const block of event.message.content) {
+                  if (block.type === 'tool_result') {
+                    const success = !block.is_error;
+                    const preview = (block.content || '').toString().slice(0, 60);
+                    console.log(`[Claude ${elapsed}s] ${success ? '✓' : '✗'} Result: ${preview}...`);
+                  }
+                }
               }
               break;
 
             case 'result':
               // Final result
-              console.log(`[Claude ${elapsed}s] ✓ Result: ${event.subtype || 'complete'}`);
+              const status = event.subtype === 'success' ? '✅' : '❌';
+              console.log(`[Claude ${elapsed}s] ${status} Done: ${event.subtype} (${event.num_turns} turns, ${event.duration_ms}ms)`);
               if (event.result) {
                 resultText = event.result;
               }
               break;
 
             case 'error':
-              console.log(`[Claude ${elapsed}s] ❌ Error: ${event.error?.message || JSON.stringify(event)}`);
+              console.log(`[Claude ${elapsed}s] ❌ Error: ${event.error?.message || JSON.stringify(event).slice(0, 100)}`);
               break;
-
-            case 'system':
-              // System messages (model info, etc.)
-              if (event.subtype === 'init') {
-                console.log(`[Claude ${elapsed}s] 📋 Session: ${event.session_id?.slice(0, 8) || 'unknown'}`);
-              }
-              break;
-
-            default:
-              // Log unknown events for debugging
-              if (event.type && !['message_start', 'message_delta', 'message_stop', 'content_block_stop'].includes(event.type)) {
-                console.log(`[Claude ${elapsed}s] 📦 ${event.type}: ${JSON.stringify(event).slice(0, 80)}`);
-              }
           }
         } catch (e) {
-          // Not JSON, log raw if meaningful
-          if (line.trim().length > 10) {
-            console.log(`[Claude] ${line.slice(0, 150)}`);
+          // Not valid JSON - might be raw output
+          if (line.trim().length > 20) {
+            console.log(`[Claude] Raw: ${line.slice(0, 100)}`);
           }
         }
       }
