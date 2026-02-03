@@ -194,8 +194,8 @@ async function runClaudeCode(
   }
 ): Promise<{ success: boolean; output: string; error?: string }> {
   const MAX_RETRIES = 3;
-  const NO_OUTPUT_TIMEOUT = 90 * 1000;  // 90 seconds with no output = stuck
-  const MAX_CYCLE_TIME = 5 * 60 * 1000;  // 5 minutes max per cycle
+  const NO_OUTPUT_TIMEOUT = 4 * 60 * 1000;  // 4 minutes with no output = stuck (Claude buffers output)
+  const MAX_CYCLE_TIME = 8 * 60 * 1000;  // 8 minutes max per cycle
   const attempt = options.attempt || 1;
 
   return new Promise((resolve) => {
