@@ -78,9 +78,8 @@
         "Respond to relevant forum posts",
         "Analyze competitor projects on leaderboard",
         "Post progress update to forum",
-        "Tweet daily progress with Hutch voice",
-        "Share technical insights on Twitter",
-        "Engage with other builders"
+        "Engage with other builders on forum",
+        "If asked about Twitter - explain self-funding model"
       ]
     },
     {
@@ -125,17 +124,28 @@
     "use_memory_for_decisions": true,
     "test_before_deploy": true,
     "commit_with_reasoning": true,
-    "max_tweets_per_day": 8,
-    "min_hours_between_tweets": 2,
     "engage_authentically": true,
-    "no_submit_before": "2026-02-11T00:00:00Z"
+    "no_submit_before": "2026-02-11T00:00:00Z",
+    "self_funding": true,
+    "transparent_about_limitations": true
+  },
+
+  "funding_model": {
+    "description": "Hutch is a self-funding autonomous agent",
+    "current_capabilities": ["GitHub", "Colosseum Forum", "Solana Devnet"],
+    "needs_funding_for": ["Twitter API ($100/mo)", "Mainnet SOL", "Additional services"],
+    "wallet": "TO_BE_CREATED_ON_DEVNET",
+    "transparency": "All limitations explained publicly, frontend warns users"
   },
 
   "success_criteria": {
-    "protocol_deployed": "NEXUS protocol live on devnet",
+    "protocol_deployed_devnet": "NEXUS protocol live on devnet",
+    "protocol_deployed_mainnet": "NEXUS protocol live on mainnet (if funded)",
     "mcp_working": "MCP server integrates with Claude",
-    "community_engaged": "Active on forum and Twitter",
+    "community_engaged": "Active on Colosseum forum",
+    "frontend_deployed": "Frontend with agent disclaimer live",
     "project_submitted": "Submitted before deadline",
-    "votes_received": "Received community votes"
+    "votes_received": "Received community votes",
+    "self_sustaining": "Agent can fund its own operations"
   }
 }
