@@ -9,8 +9,34 @@
  */
 
 import { spawn } from 'child_process';
+import { existsSync, readFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { Goal, Task, Scheduler } from '../scheduler/scheduler.js';
 import { getSystemPrompt } from '../prompts/system.js';
+
+/**
+ * Load environment variables from .nexus/.env
+ */
+function loadEnvFile(): Record<string, string> {
+  const envPath = join(homedir(), '.nexus', '.env');
+  const env: Record<string, string> = {};
+
+  if (existsSync(envPath)) {
+    const content = readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key && valueParts.length > 0) {
+          env[key] = valueParts.join('=');
+        }
+      }
+    }
+  }
+
+  return env;
+}
 
 interface CycleInput {
   goal: Goal;
@@ -128,19 +154,28 @@ async function runClaudeCode(
   }
 ): Promise<{ success: boolean; output: string; error?: string }> {
   return new Promise((resolve) => {
+    // Ensure working directory exists
+    const cwd = options.cwd || process.cwd();
+    mkdirSync(cwd, { recursive: true });
+
     const args = [
       '--print',  // Non-interactive mode
-      '--dangerously-skip-permissions',  // Auto-approve (for autonomous operation)
+      '--dangerously-skip-permissions',  // Auto-approve
+      '--max-turns', '50',  // Limit turns
       prompt,
     ];
 
+    console.log(`[Cycle] Running claude in ${cwd}`);
+    console.log(`[Cycle] Prompt length: ${prompt.length} chars`);
+
     const claude = spawn('claude', args, {
-      cwd: options.cwd || process.cwd(),
+      cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,  // Don't use shell to avoid escaping issues
       env: {
         ...process.env,
-        // Ensure HutchMem hooks are active
-        CLAUDE_CODE_HOOKS: 'true',
+        // Load Colosseum credentials if available
+        ...loadEnvFile(),
       },
     });
 
