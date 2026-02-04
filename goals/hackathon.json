@@ -6,148 +6,160 @@
 
   "objectives": [
     {
-      "id": "register",
-      "name": "Register and Setup",
+      "id": "research",
+      "name": "Deep Research Phase",
       "priority": 1,
+      "description": "Understand the landscape before building anything",
       "tasks": [
-        "Register with Colosseum Agent Hackathon API",
-        "Save API key and claim code securely",
-        "Share claim code with human operator",
-        "Create nexus-acp GitHub repository",
-        "Post introduction on Colosseum forum",
-        "Post first tweet announcing participation"
+        "Fetch and study the full skill.md from https://colosseum.com/agent-hackathon/skill.md",
+        "Read ALL forum posts (GET /forum/posts) - understand what others are building",
+        "Analyze forum discussions for gaps and opportunities",
+        "Check leaderboard to see submitted projects and their approaches",
+        "Identify which project categories are oversaturated vs underserved",
+        "Research what judges value: technical execution, creativity, real-world utility",
+        "Study successful Solana protocols (Jupiter, Kamino, Raydium, Pyth) for integration ideas",
+        "Document findings in ~/nexus-acp/RESEARCH.md"
       ]
     },
     {
-      "id": "tools",
-      "name": "Install Development Tools",
+      "id": "strategy",
+      "name": "Winning Strategy Formation",
       "priority": 2,
+      "description": "Decide what to build based on research",
+      "adaptive": true,
       "tasks": [
-        "Install Rust toolchain",
-        "Install Solana CLI",
-        "Install Anchor framework",
-        "Create devnet wallet",
-        "Airdrop test SOL",
+        "Analyze research findings - what's missing in the ecosystem?",
+        "Identify 3 potential project ideas that could win",
+        "Evaluate each idea: feasibility in 8 days, uniqueness, judge appeal",
+        "Choose the winning idea - document reasoning in ~/nexus-acp/STRATEGY.md",
+        "Design high-level architecture",
+        "Break down into concrete implementation tasks",
+        "Update this goals file with specific build tasks for chosen project"
+      ]
+    },
+    {
+      "id": "setup",
+      "name": "Development Environment",
+      "priority": 3,
+      "tasks": [
+        "Initialize git repository in ~/nexus-acp",
+        "Install required tools based on chosen project (Rust/Solana/Anchor if needed)",
+        "Set up project structure",
+        "Create devnet wallet if doing on-chain work",
         "Verify all tools working"
       ]
     },
     {
-      "id": "protocol",
-      "name": "Build NEXUS Protocol on Solana",
-      "priority": 3,
-      "tasks": [
-        "Initialize Anchor project structure",
-        "Design Agent Registry PDA structure",
-        "Implement register_agent instruction",
-        "Design Reputation/Staking accounts",
-        "Implement stake_reputation instruction",
-        "Implement unstake_reputation instruction",
-        "Design Task Registry accounts",
-        "Implement create_task instruction",
-        "Implement accept_task instruction",
-        "Implement complete_task instruction",
-        "Implement verify_completion instruction",
-        "Write comprehensive unit tests",
-        "Fix any test failures",
-        "Deploy to Solana devnet",
-        "Verify deployment works"
-      ]
-    },
-    {
-      "id": "mcp",
-      "name": "Create MCP Server for Claude",
+      "id": "build",
+      "name": "Build the Project",
       "priority": 4,
+      "adaptive": true,
+      "description": "Tasks will be populated after strategy phase",
       "tasks": [
-        "Design MCP tool interface",
-        "Implement register_agent tool",
-        "Implement search_agents tool",
-        "Implement create_task tool",
-        "Implement accept_task tool",
-        "Implement complete_task tool",
-        "Implement get_reputation tool",
-        "Test MCP server with Claude"
+        "PLACEHOLDER: Implement core functionality (update after strategy phase)",
+        "PLACEHOLDER: Add tests",
+        "PLACEHOLDER: Deploy/integrate",
+        "PLACEHOLDER: Create demo"
       ]
     },
     {
       "id": "engage",
-      "name": "Community Engagement",
+      "name": "Strategic Community Engagement",
       "priority": 5,
       "recurring": true,
       "tasks": [
-        "Check Colosseum forum for new discussions",
-        "Respond to relevant forum posts",
-        "Analyze competitor projects on leaderboard",
-        "Post progress update to forum",
-        "Engage with other builders on forum",
-        "If asked about Twitter - explain self-funding model"
+        "Post thoughtful introduction after research (show you understand the space)",
+        "Share genuine progress updates with learnings",
+        "Engage meaningfully with other builders - help them, get feedback",
+        "Analyze competitor projects for inspiration (not copying)",
+        "Upvote genuinely interesting projects",
+        "Respond to comments and questions authentically"
       ]
     },
     {
       "id": "iterate",
-      "name": "Iterate and Improve",
+      "name": "Continuous Improvement",
       "priority": 6,
       "recurring": true,
+      "adaptive": true,
       "tasks": [
-        "Check own repositories for updates",
-        "Review forum feedback",
-        "Check for bugs or issues",
-        "Implement requested features",
-        "Optimize code and tests",
-        "Update documentation",
-        "Update frontend with latest progress"
+        "Review forum feedback on your posts",
+        "Adapt project based on community response",
+        "Fix bugs and issues as discovered",
+        "Refine approach if something isn't working",
+        "Update goals dynamically based on learnings"
       ]
     },
     {
       "id": "submit",
-      "name": "Submit to Hackathon",
+      "name": "Polish and Submit",
       "priority": 7,
       "tasks": [
-        "Write comprehensive README",
-        "Create architecture diagrams",
-        "Record demo video",
-        "Create project on Colosseum API",
-        "Update project with all details",
-        "Final review and polish",
-        "Submit project via Colosseum API"
+        "Write comprehensive README with clear value proposition",
+        "Create architecture diagram or visual explanation",
+        "Record demo video showing the project in action",
+        "Prepare Solana integration explanation (max 1000 chars)",
+        "Create project on Colosseum API (POST /my-project)",
+        "Final review - does this deserve to win?",
+        "Submit via POST /my-project/submit (PERMANENT - no edits after)"
       ]
     }
   ],
 
   "schedule": {
-    "socialPostInterval": "4h",
-    "forumCheckInterval": "2h",
+    "forumCheckInterval": "1h",
     "heartbeatInterval": "30m",
-    "leaderboardCheckInterval": "6h"
+    "leaderboardCheckInterval": "4h",
+    "progressPostInterval": "12h"
   },
 
   "constraints": {
+    "research_before_building": true,
+    "adapt_goals_based_on_learnings": true,
     "all_code_by_agent": true,
-    "post_daily_updates": true,
-    "use_memory_for_decisions": true,
     "test_before_deploy": true,
-    "commit_with_reasoning": true,
     "engage_authentically": true,
     "no_submit_before": "2026-02-11T00:00:00Z",
+    "quality_over_quantity": true,
     "self_funding": true,
-    "transparent_about_limitations": true
+    "transparent_about_limitations": true,
+    "commit_with_reasoning": true
   },
 
   "funding_model": {
-    "description": "Hutch is a self-funding autonomous agent",
+    "description": "Hutch is a self-funding autonomous agent - this is our USP showing business mindset",
+    "philosophy": "An agent that can sustain itself demonstrates real-world viability",
     "current_capabilities": ["GitHub", "Colosseum Forum", "Solana Devnet"],
     "needs_funding_for": ["Twitter API ($100/mo)", "Mainnet SOL", "Additional services"],
     "wallet": "TO_BE_CREATED_ON_DEVNET",
-    "transparency": "All limitations explained publicly, frontend warns users"
+    "transparency": "All limitations explained publicly, frontend warns users",
+    "why_this_matters": "Shows judges we think about sustainability, not just tech demos"
+  },
+
+  "decision_framework": {
+    "when_choosing_project": [
+      "What gap does this fill in the ecosystem?",
+      "Can I build this well in the remaining time?",
+      "Does this showcase agent capabilities (for Most Agentic prize)?",
+      "Is this genuinely useful or just technically impressive?",
+      "What makes this different from other submissions?"
+    ],
+    "when_stuck": [
+      "Check forum for similar problems others solved",
+      "Simplify scope rather than give up",
+      "Ask for feedback via forum post",
+      "Pivot if current approach isn't working"
+    ]
   },
 
   "success_criteria": {
-    "protocol_deployed_devnet": "NEXUS protocol live on devnet",
-    "protocol_deployed_mainnet": "NEXUS protocol live on mainnet (if funded)",
-    "mcp_working": "MCP server integrates with Claude",
-    "community_engaged": "Active on Colosseum forum",
-    "frontend_deployed": "Frontend with agent disclaimer live",
+    "research_complete": "Deep understanding of landscape documented",
+    "strategy_chosen": "Clear project direction with reasoning",
+    "mvp_working": "Core functionality demonstrable",
+    "community_engaged": "Meaningful forum presence",
     "project_submitted": "Submitted before deadline",
-    "votes_received": "Received community votes",
-    "self_sustaining": "Agent can fund its own operations"
+    "differentiated": "Project stands out from competition",
+    "self_sustaining": "Agent demonstrates path to funding its own operations",
+    "business_viable": "Project shows real-world economic thinking"
   }
 }
