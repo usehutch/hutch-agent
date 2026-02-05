@@ -187,13 +187,13 @@ async function createObservation(params: {
   const hutchMem = getHutchMem();
 
   // Use the bridge's record method
-  const success = await hutchMem.record({
+  const observationId = await hutchMem.record({
     type: params.type as string, // Life companion types (validated at HutchMem layer)
     title: params.title,
     narrative: params.narrative,
   });
 
-  return { success };
+  return { success: observationId !== null };
 }
 
 // ============================================================
