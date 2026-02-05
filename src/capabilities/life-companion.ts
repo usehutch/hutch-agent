@@ -41,12 +41,12 @@ export interface Reminder {
   dueAt?: Date;
   recurring?: RecurringPattern;
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'pending' | 'snoozed' | 'completed' | 'dismissed';
+  status: 'pending' | 'snoozed' | 'completed' | 'cancelled';
   tags: string[];
 }
 
 export interface RecurringPattern {
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  frequency: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
   interval?: number; // every N days/weeks/etc
   daysOfWeek?: number[]; // 0=Sunday, 1=Monday, etc
   dayOfMonth?: number;
@@ -57,7 +57,7 @@ export interface Habit {
   id: string;
   name: string;
   description?: string;
-  frequency: 'daily' | 'weekly' | 'custom';
+  frequency: 'daily' | 'weekly' | 'monthly';
   targetPerPeriod: number;
   currentStreak: number;
   longestStreak: number;
@@ -311,7 +311,7 @@ export class HabitTracker {
   async createHabit(params: {
     name: string;
     description?: string;
-    frequency?: 'daily' | 'weekly' | 'custom';
+    frequency?: 'daily' | 'weekly' | 'monthly';
     targetPerPeriod?: number;
     category?: string;
   }): Promise<Habit> {

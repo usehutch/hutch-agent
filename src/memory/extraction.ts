@@ -471,9 +471,9 @@ async function getAuthToken(): Promise<string | null> {
 
   try {
     const tokenPath = `${process.env.HOME}/.hutch-mem/.auth-token`;
-    const file = Bun.file(tokenPath);
-    if (await file.exists()) {
-      cachedAuthToken = (await file.text()).trim();
+    const { existsSync, readFileSync } = await import('fs');
+    if (existsSync(tokenPath)) {
+      cachedAuthToken = readFileSync(tokenPath, 'utf-8').trim();
       return cachedAuthToken;
     }
   } catch {

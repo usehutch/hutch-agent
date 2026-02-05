@@ -89,7 +89,7 @@ function handleStatus(res: ServerResponse): void {
     },
     health: {
       successRate: stats.successRate,
-      isHealthy: stats.successRate > 20 && (state?.consecutiveFailures || 0) < 5,
+      isHealthy: stats.successRate > 20 && ((state?.consecutiveFailures as number) || 0) < 5,
     },
     cost: {
       today: telemetry.formatCost(stats.costToday),

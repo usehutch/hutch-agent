@@ -20,15 +20,16 @@ const HUTCHMEM_API = process.env.HUTCHMEM_API_URL || 'http://localhost:37777';
 const PROJECT = process.env.HUTCHMEM_PROJECT || 'personal';
 
 // Auth token loader (cached)
+import { existsSync, readFileSync } from 'fs';
+
 let cachedAuthToken: string | null = null;
 async function getAuthToken(): Promise<string | null> {
   if (cachedAuthToken) return cachedAuthToken;
 
   try {
     const tokenPath = `${process.env.HOME}/.hutch-mem/.auth-token`;
-    const file = Bun.file(tokenPath);
-    if (await file.exists()) {
-      cachedAuthToken = (await file.text()).trim();
+    if (existsSync(tokenPath)) {
+      cachedAuthToken = readFileSync(tokenPath, 'utf-8').trim();
       return cachedAuthToken;
     }
   } catch {
