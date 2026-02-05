@@ -1,17 +1,17 @@
 /**
- * Stop the NEXUS agent daemon
+ * Stop the Hutch Agent daemon
  */
 
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const NEXUS_DIR = join(homedir(), '.nexus');
-const PID_FILE = join(NEXUS_DIR, 'nexus.pid');
+const AGENT_DIR = join(homedir(), '.hutch-agent');
+const PID_FILE = join(AGENT_DIR, 'agent.pid');
 
 export async function stop() {
   if (!existsSync(PID_FILE)) {
-    console.log('NEXUS agent is not running');
+    console.log('Hutch Agent is not running');
     return;
   }
 
@@ -20,7 +20,7 @@ export async function stop() {
   try {
     // Send SIGTERM for graceful shutdown
     process.kill(pid, 'SIGTERM');
-    console.log(`Stopping NEXUS agent (PID: ${pid})...`);
+    console.log(`Stopping Hutch Agent (PID: ${pid})...`);
 
     // Wait for process to exit
     let attempts = 0;
@@ -46,13 +46,13 @@ export async function stop() {
 
     // Clean up PID file
     unlinkSync(PID_FILE);
-    console.log('NEXUS agent stopped');
+    console.log('Hutch Agent stopped');
 
   } catch (err: any) {
     if (err.code === 'ESRCH') {
       // Process doesn't exist, clean up stale PID file
       unlinkSync(PID_FILE);
-      console.log('NEXUS agent was not running (cleaned up stale PID file)');
+      console.log('Hutch Agent was not running (cleaned up stale PID file)');
     } else {
       throw err;
     }

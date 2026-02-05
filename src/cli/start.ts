@@ -1,5 +1,5 @@
 /**
- * Start the NEXUS agent daemon
+ * Start the Hutch Agent daemon
  */
 
 import { existsSync, writeFileSync, readFileSync } from 'fs';
@@ -10,9 +10,9 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const NEXUS_DIR = join(homedir(), '.nexus');
-const PID_FILE = join(NEXUS_DIR, 'nexus.pid');
-const LOG_FILE = join(NEXUS_DIR, 'nexus.log');
+const AGENT_DIR = join(homedir(), '.hutch-agent');
+const PID_FILE = join(AGENT_DIR, 'agent.pid');
+const LOG_FILE = join(AGENT_DIR, 'agent.log');
 
 export async function start() {
   // Check if already running
@@ -20,19 +20,19 @@ export async function start() {
     const pid = parseInt(readFileSync(PID_FILE, 'utf-8').trim());
     try {
       process.kill(pid, 0); // Check if process exists
-      console.log(`NEXUS agent already running (PID: ${pid})`);
-      console.log('Use "hutch nexus status" to check progress');
+      console.log(`Hutch Agent already running (PID: ${pid})`);
+      console.log('Use "hutch agent status" to check progress');
       return;
     } catch {
       // PID file exists but process is dead, clean up
     }
   }
 
-  // Ensure .nexus directory exists
+  // Ensure agent directory exists
   const { mkdirSync } = await import('fs');
-  mkdirSync(NEXUS_DIR, { recursive: true });
+  mkdirSync(AGENT_DIR, { recursive: true });
 
-  console.log('Starting NEXUS agent...');
+  console.log('Starting Hutch Agent...');
 
   // Check for foreground flag
   const foreground = process.argv.includes('--foreground') || process.argv.includes('-f');
@@ -54,7 +54,7 @@ export async function start() {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        NEXUS_LOG_FILE: LOG_FILE,
+        AGENT_LOG_FILE: LOG_FILE,
       },
     });
 
@@ -64,11 +64,11 @@ export async function start() {
     // Detach
     child.unref();
 
-    console.log(`NEXUS agent started (PID: ${child.pid})`);
+    console.log(`Hutch Agent started (PID: ${child.pid})`);
     console.log(`Logs: ${LOG_FILE}`);
     console.log('');
-    console.log('Use "hutch nexus status" to check progress');
-    console.log('Use "hutch nexus logs" to watch activity');
-    console.log('Use "hutch nexus stop" to stop the agent');
+    console.log('Use "hutch agent status" to check progress');
+    console.log('Use "hutch agent logs" to watch activity');
+    console.log('Use "hutch agent stop" to stop the agent');
   }
 }

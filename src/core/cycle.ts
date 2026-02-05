@@ -16,10 +16,10 @@ import { Goal, Task, Scheduler } from '../scheduler/scheduler.js';
 import { getSystemPrompt } from '../prompts/system.js';
 
 /**
- * Load environment variables from .nexus/.env
+ * Load environment variables from .hutch-agent/.env
  */
 function loadEnvFile(): Record<string, string> {
-  const envPath = join(homedir(), '.nexus', '.env');
+  const envPath = join(homedir(), '.hutch-agent', '.env');
   const env: Record<string, string> = {};
 
   if (existsSync(envPath)) {

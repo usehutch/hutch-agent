@@ -1,5 +1,5 @@
 /**
- * Stream NEXUS agent logs
+ * Stream Hutch Agent logs
  */
 
 import { existsSync, readFileSync, watchFile, statSync } from 'fs';
@@ -7,15 +7,15 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { spawn } from 'child_process';
 
-const NEXUS_DIR = join(homedir(), '.nexus');
-const LOG_FILE = join(NEXUS_DIR, 'nexus.log');
+const AGENT_DIR = join(homedir(), '.hutch-agent');
+const LOG_FILE = join(AGENT_DIR, 'agent.log');
 
 export async function logs() {
   // Check if log file exists
   if (!existsSync(LOG_FILE)) {
     console.log('No logs found. Is the agent running?');
     console.log('');
-    console.log('Start the agent with: hutch nexus start');
+    console.log('Start the agent with: hutch agent start');
     return;
   }
 

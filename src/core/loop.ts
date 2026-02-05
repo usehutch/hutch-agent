@@ -1,5 +1,5 @@
 /**
- * NEXUS Core Loop
+ * Hutch Agent Core Loop
  *
  * The 24/7 autonomous agent loop with:
  * - HEARTBEAT: Health monitoring, progress tracking, adaptation
@@ -17,9 +17,9 @@ import { Planner, Plan } from './planner.js';
 import { Reflector, Reflection } from './reflector.js';
 import { runCycle } from './cycle.js';
 
-const NEXUS_DIR = join(homedir(), '.nexus');
-const STATE_FILE = join(NEXUS_DIR, 'state.json');
-const LOG_FILE = process.env.NEXUS_LOG_FILE || join(NEXUS_DIR, 'nexus.log');
+const AGENT_DIR = join(homedir(), '.hutch-agent');
+const STATE_FILE = join(AGENT_DIR, 'state.json');
+const LOG_FILE = process.env.AGENT_LOG_FILE || join(AGENT_DIR, 'agent.log');
 
 interface AgentState {
   // Identity
@@ -104,7 +104,7 @@ function handleShutdown(signal: string) {
   // Save final state
   saveState();
 
-  log('INFO', 'NEXUS agent stopped');
+  log('INFO', 'Hutch Agent stopped');
   process.exit(0);
 }
 
@@ -129,7 +129,7 @@ function handleAlert(alert: string, metrics: HealthMetrics) {
  */
 export async function runLoop() {
   // Ensure directory exists
-  mkdirSync(NEXUS_DIR, { recursive: true });
+  mkdirSync(AGENT_DIR, { recursive: true });
 
   // Initialize state
   state = {
@@ -177,7 +177,7 @@ export async function runLoop() {
 
   // Startup banner
   log('INFO', '═'.repeat(60));
-  log('INFO', '  NEXUS Agent Starting');
+  log('INFO', '  Hutch Agent Starting');
   log('INFO', '  24/7 Autonomous AI Agent powered by HutchMem');
   log('INFO', '═'.repeat(60));
   log('INFO', `Agent ID: ${state.agentId}`);

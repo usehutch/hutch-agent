@@ -1,5 +1,5 @@
 /**
- * NEXUS Reflector
+ * Hutch Agent Reflector
  *
  * The agent's self-awareness - analyzes outcomes, learns from experience,
  * and adjusts strategy. After each action, the reflector:
@@ -15,8 +15,8 @@ import { appendFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const NEXUS_DIR = join(homedir(), '.nexus');
-const LOG_FILE = process.env.NEXUS_LOG_FILE || join(NEXUS_DIR, 'nexus.log');
+const AGENT_DIR = join(homedir(), '.hutch-agent');
+const LOG_FILE = process.env.AGENT_LOG_FILE || join(AGENT_DIR, 'agent.log');
 
 export interface ActionResult {
   success: boolean;

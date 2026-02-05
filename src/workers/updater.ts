@@ -1,11 +1,9 @@
 /**
  * Self-Update Worker
  *
- * Hutch can check and update its own repositories:
+ * Hutch Agent can check and update its own repositories:
  * - hutch-agent (this framework)
  * - hutch-mem (memory system)
- * - nexus-acp (the project being built)
- * - hutch-colosseum (frontend)
  */
 
 import { spawn } from 'child_process';
@@ -35,23 +33,13 @@ export class UpdaterWorker {
   private repos = [
     {
       name: 'hutch-agent',
-      path: join(homedir(), 'nexus'),  // Local path might be 'nexus' for now
+      path: join(homedir(), 'nexus'),  // Local path
       remote: 'https://github.com/usehutch/hutch-agent.git',
     },
     {
       name: 'hutch-mem',
       path: join(homedir(), 'hutch-mem'),
       remote: 'https://github.com/usehutch/hutch-mem.git',
-    },
-    {
-      name: 'nexus-acp',
-      path: join(homedir(), 'nexus-acp'),
-      remote: 'https://github.com/usehutch/nexus-acp.git',
-    },
-    {
-      name: 'hutch-colosseum',
-      path: join(homedir(), 'hutch-colosseum'),
-      remote: 'https://github.com/usehutch/hutch-colosseum.git',
     },
   ];
 
@@ -245,8 +233,6 @@ export class UpdaterWorker {
 Repos to check:
 - ~/nexus (hutch-agent)
 - ~/hutch-mem
-- ~/nexus-acp
-- ~/hutch-colosseum
 
 Report the status and recommend whether to update.`;
   }

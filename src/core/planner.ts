@@ -1,5 +1,5 @@
 /**
- * NEXUS Planner
+ * Hutch Agent Planner
  *
  * The agent's brain - analyzes goals, queries memory, and creates action plans.
  * Before each action, the planner:

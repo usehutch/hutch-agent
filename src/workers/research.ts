@@ -106,113 +106,98 @@ Provide a balanced, comprehensive summary.`,
   }
 
   /**
-   * Get URLs to research for hackathon
+   * Get useful research URLs for common development topics
    */
-  getHackathonResearchUrls(): {
+  getCommonResearchUrls(): {
     category: string;
     urls: string[];
   }[] {
     return [
       {
-        category: 'Colosseum Hackathon',
-        urls: [
-          'https://colosseum.com/agent-hackathon',
-          'https://colosseum.com/forum',
-          'https://colosseum.com/projects',
-          'https://colosseum.com/leaderboard',
-        ],
-      },
-      {
-        category: 'Solana Development',
-        urls: [
-          'https://docs.solana.com',
-          'https://www.anchor-lang.com/docs',
-          'https://solana.stackexchange.com',
-        ],
-      },
-      {
         category: 'AI Agent Frameworks',
         urls: [
           'https://docs.anthropic.com',
           'https://github.com/anthropics/claude-code',
+          'https://github.com/topics/ai-agent',
         ],
       },
       {
-        category: 'Competitor Analysis',
+        category: 'Development Resources',
         urls: [
-          'https://github.com/topics/ai-agent',
-          'https://github.com/topics/solana-program',
+          'https://developer.mozilla.org',
+          'https://nodejs.org/docs',
+          'https://docs.github.com',
+        ],
+      },
+      {
+        category: 'TypeScript/JavaScript',
+        urls: [
+          'https://www.typescriptlang.org/docs',
+          'https://bun.sh/docs',
+          'https://deno.land/manual',
         ],
       },
     ];
   }
 
   /**
-   * Get daily research tasks for hackathon
+   * Get daily research tasks for general development
    */
   getDailyResearchTasks(): ResearchTask[] {
     return [
       {
-        topic: 'Colosseum hackathon forum - new posts and discussions',
-        type: 'discussion',
-        sources: ['https://colosseum.com/forum'],
-        depth: 'thorough',
-      },
-      {
-        topic: 'Competitor projects on leaderboard',
-        type: 'competitor',
-        sources: ['https://colosseum.com/leaderboard', 'https://colosseum.com/projects'],
-        depth: 'quick',
-      },
-      {
-        topic: 'AI agent best practices and patterns',
+        topic: 'Latest updates in AI agent development',
         type: 'technical',
         depth: 'quick',
+      },
+      {
+        topic: 'Best practices for the current project',
+        type: 'documentation',
+        depth: 'thorough',
       },
     ];
   }
 
   /**
-   * Analyze competition (prompt for Claude)
+   * Analyze competition for a given project type
    */
-  getCompetitorAnalysisPrompt(): string {
-    return `Analyze the current hackathon competition:
+  getCompetitorAnalysisPrompt(projectType: string): string {
+    return `Analyze the current competition for: ${projectType}
 
-1. Check the leaderboard at colosseum.com/leaderboard
-2. Review top projects at colosseum.com/projects
+1. Search for similar projects
+2. Review popular implementations
 3. Identify:
-   - What types of projects are doing well
-   - Common features among top projects
-   - Gaps we could fill
-   - Unique approaches we could take
+   - What types of approaches are common
+   - What features users expect
+   - Gaps that could be filled
+   - Unique approaches that could differentiate us
 
 4. For each major competitor:
    - Project name and description
    - Their approach
    - Strengths
    - Weaknesses
-   - How we differentiate
+   - How we can differentiate
 
-Provide actionable insights for our NEXUS Protocol strategy.`;
+Provide actionable insights for our project strategy.`;
   }
 
   /**
-   * Get engagement opportunities (prompt for Claude)
+   * Get engagement opportunities prompt for community involvement
    */
-  getEngagementPrompt(): string {
-    return `Find engagement opportunities on the Colosseum forum:
+  getEngagementPrompt(community: string): string {
+    return `Find engagement opportunities in: ${community}
 
-1. Check recent posts at colosseum.com/forum
-2. Look for:
+1. Look for:
    - Questions we can answer
    - Discussions we can contribute to
    - Collaboration opportunities
    - Feedback requests we can help with
 
-3. For each opportunity:
+2. For each opportunity:
    - Post title and link
    - How we can contribute
-   - Potential benefit for NEXUS visibility
+   - Potential benefit
 
 Remember: Be genuinely helpful, not spammy. Quality > quantity.`;
   }

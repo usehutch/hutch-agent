@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 /**
- * NEXUS Agent CLI
+ * Hutch Agent CLI
  *
  * 24/7 Autonomous AI Agent powered by HutchMem
  *
  * Usage:
- *   hutch nexus start   - Start the agent daemon
- *   hutch nexus stop    - Stop the agent
- *   hutch nexus status  - Check agent status
- *   hutch nexus logs    - View agent logs
+ *   hutch agent start   - Start the agent daemon
+ *   hutch agent stop    - Stop the agent
+ *   hutch agent status  - Check agent status
+ *   hutch agent logs    - View agent logs
  */
 
 import { start } from './start.js';
@@ -53,9 +53,9 @@ async function main() {
 
 function printHelp() {
   console.log(`
-NEXUS Agent - 24/7 Autonomous AI Agent
+Hutch Agent - 24/7 Autonomous AI Agent
 
-Usage: hutch nexus <command>
+Usage: hutch agent <command>
 
 Commands:
   start   Start the agent daemon
@@ -65,10 +65,10 @@ Commands:
   help    Show this help message
 
 Examples:
-  hutch nexus start          # Start the agent
-  hutch nexus status         # Check what agent is doing
-  hutch nexus logs           # Watch agent activity
-  hutch nexus stop           # Stop the agent
+  hutch agent start          # Start the agent
+  hutch agent status         # Check what agent is doing
+  hutch agent logs           # Watch agent activity
+  hutch agent stop           # Stop the agent
 `);
 }
 

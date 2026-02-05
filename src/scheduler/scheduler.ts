@@ -1,5 +1,5 @@
 /**
- * NEXUS Scheduler
+ * Hutch Agent Scheduler
  *
  * Manages goals, tasks, and priority ordering.
  */
@@ -8,9 +8,9 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const NEXUS_DIR = join(homedir(), '.nexus');
-const GOALS_DIR = join(NEXUS_DIR, 'goals');
-const COMPLETED_TASKS_FILE = join(NEXUS_DIR, 'completed-tasks.json');
+const AGENT_DIR = join(homedir(), '.hutch-agent');
+const GOALS_DIR = join(AGENT_DIR, 'goals');
+const COMPLETED_TASKS_FILE = join(AGENT_DIR, 'completed-tasks.json');
 
 export interface Task {
   id: string;
@@ -76,7 +76,7 @@ export class Scheduler {
    */
   private saveCompletedTasks(): void {
     try {
-      mkdirSync(NEXUS_DIR, { recursive: true });
+      mkdirSync(AGENT_DIR, { recursive: true });
       const data = { taskIds: Array.from(this.completedTaskIds) };
       writeFileSync(COMPLETED_TASKS_FILE, JSON.stringify(data, null, 2));
     } catch (err) {

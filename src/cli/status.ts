@@ -1,15 +1,15 @@
 /**
- * Show NEXUS agent status
+ * Show Hutch Agent status
  */
 
 import { existsSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
-const NEXUS_DIR = join(homedir(), '.nexus');
-const PID_FILE = join(NEXUS_DIR, 'nexus.pid');
-const STATE_FILE = join(NEXUS_DIR, 'state.json');
-const LOG_FILE = join(NEXUS_DIR, 'nexus.log');
+const AGENT_DIR = join(homedir(), '.hutch-agent');
+const PID_FILE = join(AGENT_DIR, 'agent.pid');
+const STATE_FILE = join(AGENT_DIR, 'state.json');
+const LOG_FILE = join(AGENT_DIR, 'agent.log');
 
 interface AgentState {
   currentGoal?: string;
@@ -26,7 +26,7 @@ interface AgentState {
 }
 
 export async function status() {
-  console.log('NEXUS Agent Status');
+  console.log('Hutch Agent Status');
   console.log('==================');
   console.log('');
 
@@ -49,7 +49,7 @@ export async function status() {
   } else {
     console.log('Status:  STOPPED');
     console.log('');
-    console.log('Start the agent with: hutch nexus start');
+    console.log('Start the agent with: hutch agent start');
     return;
   }
 
@@ -108,5 +108,5 @@ export async function status() {
   }
 
   console.log('');
-  console.log('Use "hutch nexus logs" to watch activity');
+  console.log('Use "hutch agent logs" to watch activity');
 }
