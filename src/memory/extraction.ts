@@ -18,6 +18,8 @@ import {
   MEMORY_SEARCH_LIMIT,
   MEMORY_RELEVANCE_THRESHOLD,
 } from '../core/config.js';
+import { findDuplicates, combinedSimilarity, extractEntities as extractTextEntities } from './vector-search.js';
+import { getEntityGraph } from './entity-graph.js';
 
 // ============================================================
 // Types
@@ -169,23 +171,10 @@ export function extractCandidates(
 
 /**
  * Extract entities (nouns, file names, technical terms) from text
+ * Uses the enhanced extractor from vector-search module
  */
 function extractEntities(text: string): string[] {
-  const entities: Set<string> = new Set();
-
-  // File paths
-  const filePaths = text.match(/[\w\-./]+\.(ts|js|json|md|tsx|jsx|py|go|rs)/gi) || [];
-  filePaths.forEach(p => entities.add(p));
-
-  // Technical terms (camelCase, PascalCase, snake_case)
-  const techTerms = text.match(/\b[A-Z][a-z]+[A-Z][a-zA-Z]*\b|\b[a-z]+_[a-z_]+\b/g) || [];
-  techTerms.forEach(t => entities.add(t));
-
-  // Quoted strings
-  const quoted = text.match(/[`"']([^`"']+)[`"']/g) || [];
-  quoted.forEach(q => entities.add(q.replace(/[`"']/g, '')));
-
-  return Array.from(entities).slice(0, 10);
+  return extractTextEntities(text);
 }
 
 /**
@@ -212,11 +201,33 @@ function deduplicateCandidates(candidates: CandidateMemory[]): CandidateMemory[]
 
 /**
  * Find similar existing memories in HutchMem
+ * Uses enhanced vector search for semantic similarity
  */
 export async function findSimilarMemories(
   candidate: CandidateMemory
 ): Promise<ExistingMemory[]> {
   try {
+    // First try vector search for semantic similarity
+    const duplicates = await findDuplicates(candidate.content, {
+      threshold: MEMORY_RELEVANCE_THRESHOLD,
+      limit: MEMORY_SEARCH_LIMIT,
+    });
+
+    if (duplicates.length > 0) {
+      // Convert similarity results to ExistingMemory format
+      return duplicates.map(d => ({
+        id: d.observation.id,
+        title: d.observation.title,
+        subtitle: d.observation.subtitle,
+        narrative: d.observation.narrative,
+        type: d.observation.type,
+        confidence: d.observation.confidence || 0.5,
+        created_at_epoch: d.observation.created_at_epoch,
+        occurrence_count: d.observation.occurrence_count || 1,
+      }));
+    }
+
+    // Fallback to direct API search
     const authToken = await getAuthToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -250,23 +261,10 @@ export async function findSimilarMemories(
 }
 
 /**
- * Calculate text similarity (Jaccard on words)
+ * Calculate text similarity using enhanced algorithm from vector-search
  */
 function calculateSimilarity(a: string, b: string): number {
-  if (!a || !b) return 0;
-
-  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-
-  if (wordsA.size === 0 || wordsB.size === 0) return 0;
-
-  let intersection = 0;
-  for (const word of wordsA) {
-    if (wordsB.has(word)) intersection++;
-  }
-
-  const union = wordsA.size + wordsB.size - intersection;
-  return intersection / union;
+  return combinedSimilarity(a, b);
 }
 
 // ============================================================
@@ -451,6 +449,30 @@ export async function extractAndStoreMemories(
         result.merged++;
       } else {
         result.stored++;
+      }
+
+      // Phase 5: Update entity graph with new memory
+      try {
+        const entityGraph = getEntityGraph();
+        // Add entities and their relationships
+        for (const entity of candidate.entities) {
+          entityGraph.addEntity(entity);
+        }
+        // Create co-occurrence relationships between entities
+        for (let i = 0; i < candidate.entities.length; i++) {
+          for (let j = i + 1; j < candidate.entities.length; j++) {
+            entityGraph.addRelationship(
+              candidate.entities[i],
+              candidate.entities[j],
+              'co_occurs',
+              `Memory: ${candidate.content.slice(0, 50)}`
+            );
+          }
+        }
+        // Auto-save periodically
+        entityGraph.autoSave();
+      } catch (err) {
+        console.log(`[MemoryExtraction] Entity graph update failed: ${(err as Error).message}`);
       }
     }
   }
